@@ -1,4 +1,4 @@
-from typing import Protocol, Optional
+from typing import Optional, Protocol
 from uuid import UUID
 
 from src.domain.aircraft import Aircraft
@@ -16,5 +16,4 @@ class AircraftRepositoryProtocol(Protocol):
 
     def delete(self, aircraft_id: UUID) -> None: ...
 
-    def availabe_aircraft_by_airport(self, airport_code: str) -> list[Airport]:
-        ...
+    def availabe_aircraft_by_airport(self, airport_code: str) -> list[Airport]: ...

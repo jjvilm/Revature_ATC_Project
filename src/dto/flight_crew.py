@@ -1,4 +1,5 @@
 from uuid import UUID
+
 from pydantic import AliasChoices, BaseModel, Field
 
 
@@ -12,7 +13,8 @@ class FlightCrewRead(BaseModel):
     employee_id: UUID
 
     model_config = {"from_attributes": True}
-    
+
+
 class FlightCrewScheduleRequest(BaseModel):
     employee_ids: list[UUID] = Field(
         validation_alias=AliasChoices("employee_ids", "employee_id")

@@ -1,8 +1,9 @@
 import uuid
-from math import radians, cos, sin, asin, sqrt
-from sqlalchemy import Column, String, ForeignKey
-from sqlalchemy.ext.hybrid import hybrid_property
+from math import asin, cos, radians, sin, sqrt
+
+from sqlalchemy import Column, ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.ext.hybrid import hybrid_property
 
 from src.base import Base
 

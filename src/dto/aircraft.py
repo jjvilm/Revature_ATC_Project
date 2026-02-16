@@ -1,11 +1,14 @@
-from uuid import UUID
-from pydantic import BaseModel
 from enum import Enum
+from uuid import UUID
+
+from pydantic import BaseModel
+
 
 class AircraftStatus(str, Enum):
     AVAILABLE = "AVAILABLE"
     DEPLOYED = "DEPLOYED"
     AOG = "MAINTENANCE"
+
 
 class AircraftCreate(BaseModel):
     manufacturer: str

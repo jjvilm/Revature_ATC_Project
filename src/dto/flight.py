@@ -1,7 +1,9 @@
-from uuid import UUID
 from datetime import datetime
 from enum import Enum
+from uuid import UUID
+
 from pydantic import BaseModel
+
 
 class FlightStatus(str, Enum):
     SCHEDULED = "SCHEDULED"
@@ -10,12 +12,14 @@ class FlightStatus(str, Enum):
     DELAYED = "DELAYED"
     CANCELLED = "CANCELLED"
 
+
 class FlightCreate(BaseModel):
     route_id: UUID
     flight_status: FlightStatus = FlightStatus.SCHEDULED
     aircraft_id: UUID
     arrival_time: datetime | None = None
     departure_time: datetime | None = None
+
 
 class FlightRead(BaseModel):
     flight_id: UUID

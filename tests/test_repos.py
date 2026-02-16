@@ -1,8 +1,9 @@
-import pytest
 import uuid
 from datetime import datetime
+
+import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.orm import Session, sessionmaker
 
 from src.base import Base
 from src.domain.aircraft import Aircraft
@@ -10,35 +11,35 @@ from src.domain.airline import Airline
 from src.domain.airport import Airport
 from src.domain.flight import Flight, FlightStatus
 from src.domain.flight_crew import FlightCrew
-from src.domain.in_flight_employee import InFlightEmployee, EmployeePosition
+from src.domain.in_flight_employee import EmployeePosition, InFlightEmployee
 from src.domain.operates import Operates
 from src.domain.route import Route
-
 from src.repositories.aircraft_repository import AircraftRepository
 from src.repositories.airline_repository import AirlineRepository
 from src.repositories.airport_repository import AirportRepository
-from src.repositories.flight_repository import FlightRepository
 from src.repositories.flight_crew_repository import FlightCrewRepository
-from src.repositories.in_flight_employee_repository import InFlightEmployeeRepository
+from src.repositories.flight_repository import FlightRepository
+from src.repositories.in_flight_employee_repository import \
+    InFlightEmployeeRepository
 from src.repositories.operates_repository import OperatesRepository
 from src.repositories.route_repository import RouteRepository
-
 
 # ============================================================================
 # Test Database Setup
 # ============================================================================
+
 
 @pytest.fixture(scope="function")
 def test_db():
     """Create an in-memory SQLite database for testing."""
     engine = create_engine("sqlite:///:memory:", echo=False)
     Base.metadata.create_all(engine)
-    
+
     SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     session = SessionLocal()
-    
+
     yield session
-    
+
     session.close()
     engine.dispose()
 
@@ -47,50 +48,51 @@ def test_db():
 # Airline Repository Tests
 # ============================================================================
 
+
 class TestAirlineRepository:
     """Tests for AirlineRepository CRUD operations."""
-    
+
     def test_create_airline(self, test_db):
         """Test creating a new airline."""
         repo = AirlineRepository(test_db)
         airline = Airline(airline_designator="AA", name="American Airlines")
-        
+
         result = repo.create(airline)
-        
+
         assert result.airline_designator == "AA"
         assert result.name == "American Airlines"
-    
+
     def test_create_multiple_airlines(self, test_db):
         """Test creating multiple airlines."""
         repo = AirlineRepository(test_db)
         airline1 = Airline(airline_designator="AA", name="American Airlines")
         airline2 = Airline(airline_designator="UA", name="United Airlines")
-        
+
         repo.create(airline1)
         repo.create(airline2)
-        
+
         assert repo.list_all().__len__() == 2
-    
+
     def test_get_airline_by_designator(self, test_db):
         """Test retrieving an airline by designator."""
         repo = AirlineRepository(test_db)
         airline = Airline(airline_designator="AA", name="American Airlines")
         repo.create(airline)
-        
+
         result = repo.get("AA")
-        
+
         assert result is not None
         assert result.airline_designator == "AA"
         assert result.name == "American Airlines"
-    
+
     def test_get_nonexistent_airline(self, test_db):
         """Test retrieving a nonexistent airline returns None."""
         repo = AirlineRepository(test_db)
-        
+
         result = repo.get("XX")
-        
+
         assert result is None
-    
+
     def test_list_all_airlines(self, test_db):
         """Test listing all airlines."""
         repo = AirlineRepository(test_db)
@@ -101,57 +103,58 @@ class TestAirlineRepository:
         ]
         for airline in airlines:
             repo.create(airline)
-        
+
         result = repo.list_all()
-        
+
         assert len(result) == 3
         assert all(isinstance(a, Airline) for a in result)
-    
+
     def test_list_all_airlines_empty(self, test_db):
         """Test listing all airlines when none exist."""
         repo = AirlineRepository(test_db)
-        
+
         result = repo.list_all()
-        
+
         assert result == []
-    
+
     def test_update_airline(self, test_db):
         """Test updating an airline."""
         repo = AirlineRepository(test_db)
         airline = Airline(airline_designator="AA", name="American Airlines")
         repo.create(airline)
-        
+
         airline.name = "American Airlines Updated"
         result = repo.update(airline)
-        
+
         assert result.name == "American Airlines Updated"
         assert result.airline_designator == "AA"
-    
+
     def test_update_nonexistent_airline(self, test_db):
         """Test updating a nonexistent airline raises ValueError."""
         repo = AirlineRepository(test_db)
         airline = Airline(airline_designator="XX", name="Unknown Airlines")
-        
+
         with pytest.raises(ValueError, match="Airline not found"):
             repo.update(airline)
-    
+
     def test_delete_airline(self, test_db):
         """Test deleting an airline."""
         repo = AirlineRepository(test_db)
         airline = Airline(airline_designator="AA", name="American Airlines")
         repo.create(airline)
-        
+
         repo.delete("AA")
-        
+
         result = repo.get("AA")
         assert result is None
-    
+
     def test_delete_nonexistent_airline(self, test_db):
         """Test deleting a nonexistent airline raises ValueError."""
         repo = AirlineRepository(test_db)
-        
+
         with pytest.raises(ValueError, match="no airline found"):
             repo.delete("XX")
+
 
 """
 # ============================================================================

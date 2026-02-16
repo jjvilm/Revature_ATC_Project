@@ -1,6 +1,8 @@
 import random
+
 from faker import Faker
-from domain.in_flight_employee import InFlightEmployee, EmployeePosition
+
+from domain.in_flight_employee import EmployeePosition, InFlightEmployee
 
 fake = Faker()
 

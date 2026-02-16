@@ -1,11 +1,14 @@
 from typing import Optional
 from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from src.domain.flight import Flight
-from src.repositories.flight_repository_protocol import FlightRepositoryProtocol
-from src.domain.route import Route
+
 from src.domain.airport import Airport
+from src.domain.flight import Flight
+from src.domain.route import Route
+from src.repositories.flight_repository_protocol import \
+    FlightRepositoryProtocol
 
 
 class FlightRepository(FlightRepositoryProtocol):

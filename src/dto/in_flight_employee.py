@@ -1,5 +1,6 @@
-from uuid import UUID
 from enum import Enum
+from uuid import UUID
+
 from pydantic import BaseModel
 
 
@@ -20,7 +21,7 @@ class InFlightEmployeeCreate(BaseModel):
     last_name: str
     position: EmployeePosition
     employee_status: InFlightStatus
-    supervisor: str | None = None        
+    supervisor: str | None = None
     employee_location: str
 
 
@@ -30,7 +31,7 @@ class InFlightEmployeeRead(BaseModel):
     last_name: str
     position: EmployeePosition
     employee_status: InFlightStatus
-    supervisor: str | None = None         
+    supervisor: str | None = None
     employee_location: str
 
     model_config = {"from_attributes": True}
