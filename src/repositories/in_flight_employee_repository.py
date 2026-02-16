@@ -1,12 +1,13 @@
 from typing import Optional
 from uuid import UUID
-from sqlalchemy.orm import Session
+
 from sqlalchemy import select
+from sqlalchemy.orm import Session
+
 from src.domain.airport import Airport
 from src.domain.in_flight_employee import InFlightEmployee, InFlightStatus
-from src.repositories.in_flight_employee_repository_protocol import (
-    InFlightEmployeeRepositoryProtocol,
-)
+from src.repositories.in_flight_employee_repository_protocol import \
+    InFlightEmployeeRepositoryProtocol
 
 
 class InFlightEmployeeRepository(InFlightEmployeeRepositoryProtocol):
@@ -71,11 +72,11 @@ class InFlightEmployeeRepository(InFlightEmployeeRepositoryProtocol):
         self.session.delete(employee)
         self.session.commit()
 
-    def available_employees_at_airport(self, airport_code: str) -> list[InFlightEmployee]:
-        return (
-            self.session.scalars(
-                select(InFlightEmployee)
-                .where(InFlightEmployee.employee_location == airport_code)
-                .where(InFlightEmployee.employee_status == InFlightStatus.AVAILABLE)
-            ).all()
-        )
+    def available_employees_at_airport(
+        self, airport_code: str
+    ) -> list[InFlightEmployee]:
+        return self.session.scalars(
+            select(InFlightEmployee)
+            .where(InFlightEmployee.employee_location == airport_code)
+            .where(InFlightEmployee.employee_status == InFlightStatus.AVAILABLE)
+        ).all()

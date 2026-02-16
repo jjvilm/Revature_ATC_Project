@@ -1,5 +1,6 @@
-from typing import Protocol, Optional
+from typing import Optional, Protocol
 from uuid import UUID
+
 from src.domain.flight import Flight
 
 
@@ -15,3 +16,5 @@ class FlightRepositoryProtocol(Protocol):
     def delete(self, flight_id: UUID) -> None: ...
 
     def get_scheduled_by_city(self, origin_city: str) -> list[Flight]: ...
+
+    def update_flight_status_in_flight(self, flight_id: str) -> Flight: ...

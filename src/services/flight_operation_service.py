@@ -1,24 +1,28 @@
+from datetime import datetime, timedelta
 from typing import Optional
 from uuid import UUID
-from datetime import timedelta, datetime
 
-from src.domain.exceptions import NotFoundException, AppErrorException, PermissionDeniedException, EntityAlreadyExistsException
-from src.domain.route import Route
-from src.domain.in_flight_employee import InFlightEmployee, InFlightStatus, EmployeePosition
 from src.domain.aircraft import Aircraft, AircraftStatus
-from src.domain.flight_crew import FlightCrew
+from src.domain.exceptions import (AppErrorException,
+                                   EntityAlreadyExistsException,
+                                   NotFoundException,
+                                   PermissionDeniedException)
 from src.domain.flight import Flight, FlightStatus
-
+from src.domain.flight_crew import FlightCrew
+from src.domain.in_flight_employee import (EmployeePosition, InFlightEmployee,
+                                           InFlightStatus)
+from src.domain.route import Route
 from src.dto import aircraft
-from src.repositories.aircraft_repository_protocol import AircraftRepositoryProtocol
-from src.repositories.airport_repository_protocol import AirportRepositoryProtocol
-from src.repositories.flight_crew_repository_protocol import (
-    FlightCrewRepositoryProtocol,
-)
-from src.repositories.flight_repository_protocol import FlightRepositoryProtocol
-from src.repositories.in_flight_employee_repository_protocol import (
-    InFlightEmployeeRepositoryProtocol,
-)
+from src.repositories.aircraft_repository_protocol import \
+    AircraftRepositoryProtocol
+from src.repositories.airport_repository_protocol import \
+    AirportRepositoryProtocol
+from src.repositories.flight_crew_repository_protocol import \
+    FlightCrewRepositoryProtocol
+from src.repositories.flight_repository_protocol import \
+    FlightRepositoryProtocol
+from src.repositories.in_flight_employee_repository_protocol import \
+    InFlightEmployeeRepositoryProtocol
 from src.repositories.route_repository_protocol import RouteRepositoryProtocol
 
 
@@ -47,8 +51,12 @@ class FlightOperationService:
     # ===================================================================
     # ROUTE SERVICE
     # ===================================================================
-    def route_create(self, origin_airport_code: str, destination_airport_code: str) -> Route:
-        self._validate_route(origin_airport_code, destination_airport_code, require_id=False)
+    def route_create(
+        self, origin_airport_code: str, destination_airport_code: str
+    ) -> Route:
+        self._validate_route(
+            origin_airport_code, destination_airport_code, require_id=False
+        )
         return self.route_repo.create(origin_airport_code, destination_airport_code)
 
     def route_get(self, route_id: UUID) -> Optional[Route]:
@@ -78,12 +86,38 @@ class FlightOperationService:
             destination_airport_code=destination_airport_code,
         )
         return self.route_repo.update(route)
-        
 
     def route_delete(self, route_id: UUID) -> None:
-        self.route_repo.delete(route_id)
+        candidate_flights = [
+            flight
+            for flight in self.flight_repo.list_all()
+            if flight.route_id == route_id  # FIX: Compare route_id, not flight_id
+        ]
 
-    def _validate_route(self, origin_airport_code, destination_airport_code, require_id: bool, route_id=None) -> None:
+        target_flight_ids = [f.flight_id for f in candidate_flights]
+
+        candidate_flight_crews = [
+            crew
+            for crew in self.flight_crew_repo.list_all()
+            if crew.flight_id in target_flight_ids
+        ]
+
+        for cfc in candidate_flight_crews:
+            self.flight_crew_repo.delete(cfc.flight_id, cfc.employee_id) 
+        
+        for c_f in candidate_flights:
+            self.flight_repo.delete(c_f.flight_id)
+
+        # Third: Delete the Route itself
+        self.route_repo.delete(route_id) 
+
+    def _validate_route(
+        self,
+        origin_airport_code,
+        destination_airport_code,
+        require_id: bool,
+        route_id=None,
+    ) -> None:
         if require_id and not route_id:
             raise ValueError("route_id is required for update")
         if not origin_airport_code:
@@ -97,7 +131,9 @@ class FlightOperationService:
         if self.airport_repo.get(destination_airport_code) is None:
             raise NotFoundException("Destination airport cannot be found")
         # Check if this route exists already:
-        existing_route = self.route_repo.get_by_airport_codes(origin_airport_code, destination_airport_code)
+        existing_route = self.route_repo.get_by_airport_codes(
+            origin_airport_code, destination_airport_code
+        )
         if existing_route:
             raise EntityAlreadyExistsException("Proposed route already exists")
 
@@ -128,7 +164,7 @@ class FlightOperationService:
     # ===================================================================
     # Flight Service
     # ===================================================================
- 
+
     def confirm_flight_landed(self, flight_id: UUID) -> Aircraft:
         flight = self.flight_repo.get(flight_id)
         if flight is None:
@@ -152,93 +188,140 @@ class FlightOperationService:
             )
 
         aircraft.aircraft_location = route.destination_airport_code
-        aircraft.current_distance += 100  # REPLACE WITH DISTANCE CALCULATION
+        aircraft.current_distance += 50000  # REPLACE WITH DISTANCE CALCULATION
         if aircraft.current_distance > aircraft.maintenance_interval:
             aircraft.aircraft_status = AircraftStatus.AOG
         else:
             aircraft.aircraft_status = AircraftStatus.AVAILABLE
 
         return self.aircraft_repo.update(aircraft)
-    
 
-    def update_flight_status(self, flight_id: UUID, status: FlightStatus):
+    def cancel_flight(self, flight_id: UUID) -> Flight:
         flight = self.flight_repo.get(flight_id)
         if flight is None:
             raise NotFoundException("Flight cannot be found")
-        flight.flight_status = status
-        return self.flight_repo.update(flight)
-    
+        
+        if flight.flight_status not in [FlightStatus.SCHEDULED, FlightStatus.DELAYED]:
+            raise PermissionDeniedException("Only scheduled or delayed flights can be cancelled")
+        
+        aircraft = self.aircraft_repo.get(flight.aircraft_id)
+        if aircraft is None:
+            raise NotFoundException("Associated aircraft cannot be found")
+        
+        #Cancel the flight:
+        flight.flight_status = FlightStatus.CANCELLED
+        updated_flight = self.flight_repo.update(flight)
+        
+        #Set Aircraft to available:
+        aircraft.aircraft_status = AircraftStatus.AVAILABLE
+        self.aircraft_repo.update(aircraft)
+        
+        #Unassign employees:
+        assignments = self.flight_crew_repo.get_by_flight(flight_id)
+        for assignment in assignments:
+            employee = self.in_flight_employee_repo.get(assignment.employee_id)
+            if employee is None:
+                continue
+            self.in_flight_employee_repo.update_status_location(
+                employee,
+                InFlightStatus.AVAILABLE,
+                employee.employee_location,
+            )
+            
+        return updated_flight
+
     def schedule_flight(
-        self,
-        route_id: UUID,
-        aircraft_id: UUID,
-        arrival: datetime,
-        departure: datetime
+        self, route_id: UUID, aircraft_id: UUID, arrival: datetime, departure: datetime
     ) -> Flight:
         route = self.route_repo.get_by_id(route_id)
         if route is None:
             raise NotFoundException("Route cannot be found")
-        
+
         aircraft = self.aircraft_repo.get(aircraft_id)
         if aircraft is None:
             raise NotFoundException("Aircraft cannot be found")
-        
+
         if aircraft.aircraft_location != route.origin_airport_code:
             raise PermissionDeniedException(
                 "Aircraft is not located at the route origin airport"
             )
-        
+
         if aircraft.aircraft_status != AircraftStatus.AVAILABLE:
             raise PermissionDeniedException("Aircraft is not available")
-        
+
         if departure >= arrival:
             raise AppErrorException("Departure time must be before arrival time")
-        
+
         print(f"{route_id} - {aircraft_id} - {arrival} - {departure}")
         new_flight = Flight(
             route_id=route_id,
             aircraft_id=aircraft_id,
             flight_status=FlightStatus.SCHEDULED,
             arrival_time=arrival,
-            departure_time=departure
+            departure_time=departure,
         )
-        
+
         created_flight = self.flight_repo.create(new_flight)
-        
+
         aircraft.aircraft_status = AircraftStatus.DEPLOYED
         self.aircraft_repo.update(aircraft)
-        
+
         return created_flight
-    
+
     def delay_flight(self, flight_id: UUID, extra_minutes: int):
         flight = self.flight_repo.get(flight_id)
         if flight is None:
             raise NotFoundException("Flight cannot be found")
-        
+        if extra_minutes is None:
+            raise NotFoundException("xd?")
+
         if flight.departure_time:
-            flight.departure_time += timedelta(minutes= extra_minutes)
-        
+            flight.departure_time += timedelta(minutes=extra_minutes)
+
         if flight.arrival_time:
-            flight.arrival_time += timedelta(minutes= extra_minutes)
+            flight.arrival_time += timedelta(minutes=extra_minutes)
+
+        if flight.flight_status:
+            flight.flight_status = FlightStatus.DELAYED
+        print(flight.flight_status)
 
         return self.flight_repo.update(flight)
-    
+
     def delete_flight(self, flight_id: UUID):
         self.flight_repo.delete(flight_id)
 
     def change_aircraft_for_flight(self, flight_id: UUID, aircraft_id: UUID) -> Flight:
         flight = self.flight_repo.get(flight_id)
         aircraft = self.aircraft_repo.get(aircraft_id)
+        old_aircraft = self.aircraft_repo.get(flight.aircraft_id)
 
         if flight is None:
             raise NotFoundException("Flight cannot be found")
         if aircraft is None:
-            raise NotFoundException("Aircraft cannot be found")
+            raise NotFoundException("New Aircraft cannot be found")
+        if old_aircraft is None:
+            raise NotFoundException("Associated aircraft cannot be found")
+        if old_aircraft.aircraft_id == aircraft_id:
+            raise AppErrorException("Aircraft already assigned to this Flight")
+        if old_aircraft.aircraft_location != aircraft.aircraft_location:
+            raise AppErrorException("Aircraft not in the same airport as Flight")
+        if aircraft.aircraft_status == AircraftStatus.DEPLOYED:
+            raise AppErrorException(f"Aircraft: {aircraft.aircraft_id} is already assigned or deployed")
+        
+        
+        #Set new Aircraft to deployed and old aircraft to available:
+        old_aircraft.aircraft_status = AircraftStatus.AVAILABLE
+        self.aircraft_repo.update(old_aircraft)
+        aircraft.aircraft_status = AircraftStatus.DEPLOYED
+        self.aircraft_repo.update(aircraft)
 
         flight.aircraft_id = aircraft_id
-        return self.flight_repo.update(flight)  
-          
-    def schedule_employees(self, flight_id: UUID, employee_ids: list[UUID]) -> list[FlightCrew]:
+
+        return self.flight_repo.update(flight)
+
+    def schedule_employees(
+        self, flight_id: UUID, employee_ids: list[UUID]
+    ) -> list[FlightCrew]:
         flight = self.flight_repo.get(flight_id)
         if flight is None:
             raise NotFoundException("Flight cannot be found")
@@ -248,7 +331,9 @@ class FlightOperationService:
             raise NotFoundException("Route for flight cannot be found")
 
         if not employee_ids:
-            raise AppErrorException("At least one employee must be scheduled for the flight")
+            raise AppErrorException(
+                "At least one employee must be scheduled for the flight"
+            )
 
         unique_ids = list(set(employee_ids))
         if len(unique_ids) != len(employee_ids):
@@ -267,7 +352,9 @@ class FlightOperationService:
         for employee_id in unique_ids:
             employee = self.in_flight_employee_repo.get(employee_id)
             if employee is None:
-                raise NotFoundException(f"Employee with ID {employee_id} cannot be found")
+                raise NotFoundException(
+                    f"Employee with ID {employee_id} cannot be found"
+                )
 
             if employee.employee_location != route.origin_airport_code:
                 raise PermissionDeniedException(
@@ -275,9 +362,13 @@ class FlightOperationService:
                 )
 
             if employee.employee_status != InFlightStatus.AVAILABLE:
-                raise PermissionDeniedException(f"Employee {employee_id} is not available")
+                raise PermissionDeniedException(
+                    f"Employee {employee_id} is not available"
+                )
 
-            existing_assignment = self.flight_crew_repo.get(flight.flight_id, employee_id)
+            existing_assignment = self.flight_crew_repo.get(
+                flight.flight_id, employee_id
+            )
             if existing_assignment is not None:
                 raise AppErrorException(
                     f"Employee {employee_id} is already assigned to this flight"
@@ -308,14 +399,32 @@ class FlightOperationService:
             )
 
         return created_assignments
-                
+    
+
+
     # ===================================================================
     # Aircraft Service
     # ===================================================================
+
+    def repair_aircraft(self, aircraft_id: UUID) -> Aircraft:
+        aircraft = self.aircraft_repo.get(aircraft_id)
+        if(aircraft.aircraft_status == AircraftStatus.AOG):
+            aircraft.aircraft_status = AircraftStatus.AVAILABLE
+            aircraft.current_distance = 0
+            self.aircraft_repo.update(aircraft)
+        return aircraft
     
-    def repair_aircraft(self, flight: Flight, employees: list[InFlightEmployee]):
-        pass
+
+    def decommission_aircraft(self, aircraft_id: UUID):
+        aircraft = self.aircraft_repo.get(aircraft_id)
+        if aircraft is None:
+            raise NotFoundException("aircraft cannot be found")
+        if aircraft.aircraft_status != AircraftStatus.AVAILABLE:
+            raise AppErrorException(f"Cannot decommission aircraft in use")
+        self.aircraft_repo.delete(aircraft_id)
+
+    
     # ===================================================================)
-        ## TODO
-        ## route is not defined
-        ## TODOs
+    ## TODO
+    ## route is not defined
+    ## TODOs

@@ -1,14 +1,10 @@
 from typing import Optional
 from uuid import UUID
 
-from src.domain.in_flight_employee import (
-    InFlightEmployee,
-    EmployeePosition,
-    InFlightStatus,
-)
-from src.repositories.in_flight_employee_repository_protocol import (
-    InFlightEmployeeRepositoryProtocol,
-)
+from src.domain.in_flight_employee import (EmployeePosition, InFlightEmployee,
+                                           InFlightStatus)
+from src.repositories.in_flight_employee_repository_protocol import \
+    InFlightEmployeeRepositoryProtocol
 
 
 class InFlightEmployeeService:

@@ -1,16 +1,21 @@
-from typing import Protocol, Optional
+from typing import Optional, Protocol
 from uuid import UUID
+
 from src.domain.flight import Flight
 from src.domain.flight_crew import FlightCrew
 from src.domain.route import Route
 
 
 class RouteRepositoryProtocol(Protocol):
-    def create(self, origin_airport_code: str, destination_airport_code: str) -> Route: ...
+    def create(
+        self, origin_airport_code: str, destination_airport_code: str
+    ) -> Route: ...
 
     def get_by_id(self, route_id: UUID) -> Optional[Route]: ...
 
-    def get_by_airport_codes(self, origin_airport_code: str, destination_airport_code: str) -> Optional[Route]: ...
+    def get_by_airport_codes(
+        self, origin_airport_code: str, destination_airport_code: str
+    ) -> Optional[Route]: ...
 
     def list_all(self) -> list[Route]: ...
 
@@ -18,5 +23,6 @@ class RouteRepositoryProtocol(Protocol):
 
     def delete(self, route_id: UUID) -> None: ...
 
-    def deletion_proposal(self, route_id: UUID) -> tuple[list[Flight], list[FlightCrew]]:
-        ...
+    def deletion_proposal(
+        self, route_id: UUID
+    ) -> tuple[list[Flight], list[FlightCrew]]: ...

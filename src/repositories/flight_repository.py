@@ -1,11 +1,14 @@
 from typing import Optional
 from uuid import UUID
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
-from src.domain.flight import Flight
-from src.repositories.flight_repository_protocol import FlightRepositoryProtocol
-from src.domain.route import Route
+
 from src.domain.airport import Airport
+from src.domain.flight import Flight, FlightStatus
+from src.domain.route import Route
+from src.repositories.flight_repository_protocol import \
+    FlightRepositoryProtocol
 
 
 class FlightRepository(FlightRepositoryProtocol):
@@ -67,3 +70,10 @@ class FlightRepository(FlightRepositoryProtocol):
         )
         print(flights[0].flight_id)
         return flights
+
+    def update_flight_status_in_flight(self, flight_id) -> Flight:
+        flight = self.session.get(Flight, flight_id)
+        flight.flight_status = FlightStatus.IN_FLIGHT
+        self.session.commit()
+        self.session.refresh(flight)
+        return flight

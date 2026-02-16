@@ -1,5 +1,6 @@
-from typing import Protocol, Optional
+from typing import Optional, Protocol
 from uuid import UUID
+
 from src.domain.in_flight_employee import InFlightEmployee, InFlightStatus
 
 
@@ -23,5 +24,6 @@ class InFlightEmployeeRepositoryProtocol(Protocol):
 
     def delete(self, employee_id: UUID) -> None: ...
 
-    def available_employees_at_airport(self, airport_code: str) -> list[InFlightEmployee]:
-        ...
+    def available_employees_at_airport(
+        self, airport_code: str
+    ) -> list[InFlightEmployee]: ...
