@@ -1,3 +1,5 @@
+# Enables postponed (string) evaluation of type hints so 
+# forward references work without runtime import order issues
 from __future__ import annotations
 
 from datetime import datetime, timedelta
@@ -39,10 +41,14 @@ from src.services.route_service import RouteService
 
 
 RepositoryMap = Dict[str, MagicMock]
+## MagicMock is a helper that creates flexible mock objects. These mocks
+## record how they're used and can simulate attributes or methods returns, so tests
+## can replace real dependencies with controllable stand-ins. 
 
 
 @pytest.fixture
 def mock_repositories() -> RepositoryMap:
+    """ Provides a dictionary of MagicMocked repositories for wiring the services"""
     return {
         "airport_repo": MagicMock(spec=AirportRepositoryProtocol),
         "aircraft_repo": MagicMock(spec=AircraftRepositoryProtocol),
@@ -57,6 +63,7 @@ def mock_repositories() -> RepositoryMap:
 
 @pytest.fixture
 def test_data(mock_repositories: RepositoryMap) -> dict[str, Any]:
+    """Construct in-memory stores plus service instances shared across tests."""
     airport_repo = mock_repositories["airport_repo"]
     aircraft_repo = mock_repositories["aircraft_repo"]
     in_flight_employee_repo = mock_repositories["in_flight_employee_repo"]
@@ -149,6 +156,7 @@ def test_data(mock_repositories: RepositoryMap) -> dict[str, Any]:
             for aircraft in aircraft_store.values()
             if aircraft.aircraft_location == code
             and aircraft.aircraft_status == AircraftStatus.AVAILABLE
+            and aircraft.aircraft_id != spare_id
         ]
     )
 
@@ -217,6 +225,7 @@ def test_data(mock_repositories: RepositoryMap) -> dict[str, Any]:
             for employee in employee_store.values()
             if employee.employee_location == code
             and employee.employee_status == InFlightStatus.AVAILABLE
+            and employee.position == EmployeePosition.FLIGHT_ATTENDANT
         ]
     )
 
@@ -264,7 +273,7 @@ def test_data(mock_repositories: RepositoryMap) -> dict[str, Any]:
     route_repo.delete.side_effect = lambda route_id: route_store.pop(route_id, None)
     route_repo.deletion_proposal.return_value = ([], [])
 
-    default_route = create_route("JFK", "LAX")
+    default_route = create_route("JFK", "ORD")
 
     flight_store: Dict[UUID, Flight] = {}
 
@@ -363,7 +372,7 @@ def test_data(mock_repositories: RepositoryMap) -> dict[str, Any]:
             "scheduled": scheduled_employee_id,
         },
         "routes_store": route_store,
-        "route_ids": {"jfk_lax": default_route.route_id},
+        "route_ids": {"default": default_route.route_id},
         "flight_store": flight_store,
         "mocks": mock_repositories,
     }
@@ -373,6 +382,7 @@ class TestAircraftService:
     def test_service_get_available_aircraft_at_airport(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Verify only available aircraft at the airport are returned."""
         service: AircraftService = test_data["aircraft_service"]
 
         available = service.available_aircraft_at_airport("JFK")
@@ -383,12 +393,14 @@ class TestAircraftService:
     def test_service_get_available_aircraft_invalid_airport(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Ensure an unknown airport raises NotFoundException."""
         service: AircraftService = test_data["aircraft_service"]
 
         with pytest.raises(NotFoundException):
             service.available_aircraft_at_airport("ORD")
 
     def test_service_repair_aircraft(self, test_data: dict[str, Any]) -> None:
+        """Confirm repairing an AOG aircraft resets status and distance."""
         service: AircraftService = test_data["aircraft_service"]
         aircraft_id = test_data["aircraft_ids"]["aog"]
 
@@ -398,6 +410,7 @@ class TestAircraftService:
         assert repaired.current_distance == 0
 
     def test_service_schedule_repair_aircraft(self, test_data: dict[str, Any]) -> None:
+        """Check an available aircraft can be scheduled for repair."""
         service: AircraftService = test_data["aircraft_service"]
         aircraft_id = test_data["aircraft_ids"]["available"]
 
@@ -408,6 +421,7 @@ class TestAircraftService:
     def test_service_schedule_repair_aircraft_rejects_busy_aircraft(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Assert deployed aircraft cannot be scheduled for repair."""
         service: AircraftService = test_data["aircraft_service"]
         aircraft_id = test_data["aircraft_ids"]["deployed"]
 
@@ -419,6 +433,7 @@ class TestInFlightEmployeeService:
     def test_service_available_employees_at_airport(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Validate only available attendants at the airport are returned."""
         service: InFlightEmployeeService = test_data["in_flight_employee_service"]
 
         employees = service.available_employees_at_airport("JFK")
@@ -429,6 +444,7 @@ class TestInFlightEmployeeService:
     def test_service_available_employees_airport_not_found(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Ensure querying a missing airport raises NotFoundException."""
         service: InFlightEmployeeService = test_data["in_flight_employee_service"]
 
         with pytest.raises(NotFoundException):
@@ -437,6 +453,7 @@ class TestInFlightEmployeeService:
 
 class TestRouteService:
     def test_service_create_route(self, test_data: dict[str, Any]) -> None:
+        """Check creating a new route persists it in the store."""
         service: RouteService = test_data["route_service"]
         routes_store: Dict[UUID, Route] = test_data["routes_store"]
 
@@ -448,6 +465,7 @@ class TestRouteService:
     def test_service_create_route_rejects_duplicates(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Verify duplicate routes raise EntityAlreadyExistsException."""
         service: RouteService = test_data["route_service"]
 
         service.route_create("JFK", "LAX")
@@ -457,6 +475,7 @@ class TestRouteService:
     def test_service_create_route_rejects_identical_airports(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Ensure routes with identical endpoints are rejected."""
         service: RouteService = test_data["route_service"]
 
         with pytest.raises(AppErrorException):
@@ -465,8 +484,9 @@ class TestRouteService:
 
 class TestFlightService:
     def _schedule_basic_flight(self, test_data: dict[str, Any]) -> Flight:
+        """Helper to schedule a baseline flight for reuse in tests."""
         service: FlightService = test_data["flight_service"]
-        route_id = test_data["route_ids"]["jfk_lax"]
+        route_id = test_data["route_ids"]["default"]
         aircraft_id = test_data["aircraft_ids"]["available"]
         departure = datetime.utcnow()
         arrival = departure + timedelta(hours=5)
@@ -476,6 +496,7 @@ class TestFlightService:
     def _schedule_required_employees(
         self, test_data: dict[str, Any], flight: Flight
     ) -> list[UUID]:
+        """Assign the minimum required crew to the provided flight."""
         service: FlightService = test_data["flight_service"]
         employee_ids = [
             test_data["employee_ids"]["captain"],
@@ -489,6 +510,7 @@ class TestFlightService:
     def test_service_schedule_flight_deploys_aircraft(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Ensure scheduling a flight deploys the chosen aircraft."""
         flight = self._schedule_basic_flight(test_data)
 
         assert flight.flight_status == FlightStatus.SCHEDULED
@@ -498,6 +520,7 @@ class TestFlightService:
     def test_service_schedule_employees_sets_required_positions(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Confirm scheduling crew pushes each to the scheduled status."""
         flight = self._schedule_basic_flight(test_data)
         self._schedule_required_employees(test_data, flight)
 
@@ -509,6 +532,7 @@ class TestFlightService:
     def test_service_launch_flight_with_complete_crew(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Verify launching succeeds and marks the flight in-flight."""
         service: FlightService = test_data["flight_service"]
         flight = self._schedule_basic_flight(test_data)
         self._schedule_required_employees(test_data, flight)
@@ -520,6 +544,7 @@ class TestFlightService:
     def test_service_delay_flight_updates_times_and_status(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Check delaying adjusts timestamps and status appropriately."""
         service: FlightService = test_data["flight_service"]
         flight = self._schedule_basic_flight(test_data)
         original_departure = flight.departure_time
@@ -534,6 +559,7 @@ class TestFlightService:
     def test_service_cancel_flight_releases_resources(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Ensure cancelling frees the aircraft and crew back to available."""
         service: FlightService = test_data["flight_service"]
         flight = self._schedule_basic_flight(test_data)
         employee_ids = self._schedule_required_employees(test_data, flight)
@@ -552,6 +578,7 @@ class TestFlightService:
     def test_service_change_aircraft_for_flight_updates_statuses(
         self, test_data: dict[str, Any]
     ) -> None:
+        """Confirm swapping aircraft reassigns statuses correctly."""
         service: FlightService = test_data["flight_service"]
         flight = self._schedule_basic_flight(test_data)
         new_aircraft_id = test_data["aircraft_ids"]["spare"]

@@ -49,8 +49,8 @@ class TestAirportRepository:
         )
         repo.create(airport)
 
-        # Assuming the model uses 'airport_id' as the primary key
-        retrieved = repo.get(airport.airport_id)
+        # Assuming the model uses 'airport_code' as the primary key
+        retrieved = repo.get(airport.airport_code)
         assert retrieved is not None
         assert retrieved.airport_name == "Test Airport"
         assert retrieved.airport_code == "TEST"
@@ -90,7 +90,7 @@ class TestAirportRepository:
         airport.airport_city = "Updated City"
         repo.update(airport)
 
-        retrieved = repo.get(airport.airport_id)
+        retrieved = repo.get(airport.airport_code)
         assert retrieved.airport_name == "Updated Name"
         assert retrieved.airport_city == "Updated City"
 
@@ -99,8 +99,8 @@ class TestAirportRepository:
         airport = Airport(airport_code="DEL", airport_name="Delete Me", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0)
         repo.create(airport)
         
-        repo.delete(airport.airport_id)
-        assert repo.get(airport.airport_id) is None
+        repo.delete(airport.airport_code)
+        assert repo.get(airport.airport_code) is None
 
 class TestAircraftRepository:
     def test_create_and_get_aircraft(self, test_db):
@@ -166,7 +166,7 @@ class TestAircraftRepository:
         aircraft_repo.create(a2)
 
         # 3. Test logic - Assuming search is done by the Airport's Primary Key (UUID)
-        available = aircraft_repo.available_aircraft_by_airport(airport.airport_id)
+        available = aircraft_repo.available_aircraft_by_airport(airport.airport_code)
         
         assert len(available) == 1
         assert available[0].aircraft_id == created_a1.aircraft_id
@@ -220,24 +220,26 @@ class TestFlightCrewRepository:
             route_id=route.route_id,
             aircraft_id=aircraft.aircraft_id,
             flight_status=FlightStatus.SCHEDULED,
-            departure_time=datetime.utcnow(),
-            arrival_time=datetime.utcnow(),
+            departure_time=datetime.now(),
+            arrival_time=datetime.now(),
         )
         flight = flight_repo.create(flight)
 
-        # Create employee
+        # Create supervisor employee (self-supervising)
         employee_repo = InFlightEmployeeRepository(test_db)
-        employee = InFlightEmployee(
+        supervisor_id = uuid.uuid4()
+        supervisor = InFlightEmployee(
+            employee_id=supervisor_id,
             first_name="John",
             last_name="Doe",
             position=EmployeePosition.CAPTAIN,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="JFK",
         )
-        employee = employee_repo.create(employee)
+        supervisor = employee_repo.create(supervisor)
 
-        return {"flight": flight, "employee": employee}
+        return {"flight": flight, "employee": supervisor}
 
     def test_create_and_get_flight_crew(self, test_db):
         deps = self.flight_crew_dependencies(test_db)
@@ -257,12 +259,13 @@ class TestFlightCrewRepository:
         employee_repo = InFlightEmployeeRepository(test_db)
 
         # create two more employees and assign to same flight
+        supervisor_id = deps["employee"].employee_id
         e1 = InFlightEmployee(
             first_name="A",
             last_name="One",
             position=EmployeePosition.FLIGHT_ATTENDANT,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="JFK",
         )
         e2 = InFlightEmployee(
@@ -270,7 +273,7 @@ class TestFlightCrewRepository:
             last_name="Two",
             position=EmployeePosition.FLIGHT_ATTENDANT,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="JFK",
         )
         e1 = employee_repo.create(e1)
@@ -341,12 +344,14 @@ class TestInFlightEmployeeRepository:
         airport_repo.create(airport)
 
         repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
         emp = InFlightEmployee(
+            employee_id=supervisor_id,
             first_name="Alice",
             last_name="Smith",
             position=EmployeePosition.COPILOT,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="JFK",
         )
 
@@ -359,12 +364,14 @@ class TestInFlightEmployeeRepository:
         AirportRepository(test_db).create(airport)
 
         repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
         emp = InFlightEmployee(
+            employee_id=supervisor_id,
             first_name="Bob",
             last_name="Brown",
             position=EmployeePosition.CAPTAIN,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="LAX",
         )
         created = repo.create(emp)
@@ -380,13 +387,23 @@ class TestInFlightEmployeeRepository:
     def test_list_all_employees(self, test_db):
         AirportRepository(test_db).create(Airport(airport_code="AAA", airport_name="A", airport_country="C", airport_city="City", airport_address="Addr", longitude=0, latitude=0))
         repo = InFlightEmployeeRepository(test_db)
-        for i in range(3):
+        supervisor_id = uuid.uuid4()
+        repo.create(InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="F0",
+            last_name="L0",
+            position=EmployeePosition.FLIGHT_ATTENDANT,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="AAA",
+        ))
+        for i in range(1, 3):
             repo.create(InFlightEmployee(
                 first_name=f"F{i}",
                 last_name=f"L{i}",
                 position=EmployeePosition.FLIGHT_ATTENDANT,
                 employee_status=InFlightStatus.AVAILABLE,
-                supervisor=None,
+                supervisor=supervisor_id,
                 employee_location="AAA",
             ))
 
@@ -396,12 +413,14 @@ class TestInFlightEmployeeRepository:
     def test_update_status_location(self, test_db):
         AirportRepository(test_db).create(Airport(airport_code="SFO", airport_name="SFO", airport_country="USA", airport_city="SF", airport_address="Addr", longitude=0, latitude=0))
         repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
         emp = repo.create(InFlightEmployee(
+            employee_id=supervisor_id,
             first_name="Cara",
             last_name="Lane",
             position=EmployeePosition.FLIGHT_MANAGER,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="SFO",
         ))
 
@@ -411,19 +430,22 @@ class TestInFlightEmployeeRepository:
 
     def test_update_nonexistent_employee_raises(self, test_db):
         repo = InFlightEmployeeRepository(test_db)
-        fake = InFlightEmployee(employee_id=uuid.uuid4(), first_name="X", last_name="Y", position=EmployeePosition.COPILOT, employee_status=InFlightStatus.AVAILABLE, supervisor=None, employee_location="JFK")
+        supervisor_id = uuid.uuid4()
+        fake = InFlightEmployee(employee_id=uuid.uuid4(), first_name="X", last_name="Y", position=EmployeePosition.COPILOT, employee_status=InFlightStatus.AVAILABLE, supervisor=supervisor_id, employee_location="JFK")
         with pytest.raises(ValueError):
             repo.update_status_location(fake, InFlightStatus.SCHEDULED, "LAX")
 
     def test_delete_employee(self, test_db):
         AirportRepository(test_db).create(Airport(airport_code="DEL", airport_name="DEL", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0))
         repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
         emp = repo.create(InFlightEmployee(
+            employee_id=supervisor_id,
             first_name="D",
             last_name="E",
             position=EmployeePosition.FLIGHT_ATTENDANT,
             employee_status=InFlightStatus.AVAILABLE,
-            supervisor=None,
+            supervisor=supervisor_id,
             employee_location="DEL",
         ))
 
@@ -438,13 +460,14 @@ class TestInFlightEmployeeRepository:
     def test_available_employees_at_airport(self, test_db):
         AirportRepository(test_db).create(Airport(airport_code="X1", airport_name="X1", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0))
         repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
         # one available at X1
-        repo.create(InFlightEmployee(first_name="Avail", last_name="One", position=EmployeePosition.FLIGHT_ATTENDANT, employee_status=InFlightStatus.AVAILABLE, supervisor=None, employee_location="X1"))
+        repo.create(InFlightEmployee(first_name="Avail", last_name="One", position=EmployeePosition.FLIGHT_ATTENDANT, employee_status=InFlightStatus.AVAILABLE, supervisor=supervisor_id, employee_location="X1"))
         # one scheduled at X1 (should not be returned)
-        repo.create(InFlightEmployee(first_name="Sched", last_name="Two", position=EmployeePosition.FLIGHT_ATTENDANT, employee_status=InFlightStatus.SCHEDULED, supervisor=None, employee_location="X1"))
+        repo.create(InFlightEmployee(first_name="Sched", last_name="Two", position=EmployeePosition.FLIGHT_ATTENDANT, employee_status=InFlightStatus.SCHEDULED, supervisor=supervisor_id, employee_location="X1"))
         # available elsewhere
         AirportRepository(test_db).create(Airport(airport_code="Y1", airport_name="Y1", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0))
-        repo.create(InFlightEmployee(first_name="Avail", last_name="Three", position=EmployeePosition.COPILOT, employee_status=InFlightStatus.AVAILABLE, supervisor=None, employee_location="Y1"))
+        repo.create(InFlightEmployee(first_name="Avail", last_name="Three", position=EmployeePosition.COPILOT, employee_status=InFlightStatus.AVAILABLE, supervisor=supervisor_id, employee_location="Y1"))
 
         avail = repo.available_employees_at_airport("X1")
         assert all(e.employee_location == "X1" for e in avail)
@@ -464,7 +487,7 @@ class TestFlightRepository:
         aircraft = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="X", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="ORG"))
 
         repo = FlightRepository(test_db)
-        flight = Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow())
+        flight = Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now())
         created = repo.create(flight)
 
         fetched = repo.get(created.flight_id)
@@ -483,8 +506,8 @@ class TestFlightRepository:
         ac = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="X", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="A1"))
 
         repo = FlightRepository(test_db)
-        repo.create(Flight(route_id=route.route_id, aircraft_id=ac.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow()))
-        repo.create(Flight(route_id=route.route_id, aircraft_id=ac.aircraft_id, flight_status=FlightStatus.DELAYED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow()))
+        repo.create(Flight(route_id=route.route_id, aircraft_id=ac.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
+        repo.create(Flight(route_id=route.route_id, aircraft_id=ac.aircraft_id, flight_status=FlightStatus.DELAYED, departure_time=datetime.now(), arrival_time=datetime.now()))
 
         all_flights = repo.list_all()
         assert len(all_flights) >= 2
@@ -503,7 +526,7 @@ class TestFlightRepository:
         a2 = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="A2", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="U1"))
 
         repo = FlightRepository(test_db)
-        flight = repo.create(Flight(route_id=r1.route_id, aircraft_id=a1.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow()))
+        flight = repo.create(Flight(route_id=r1.route_id, aircraft_id=a1.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
 
         # modify and update
         flight.route_id = r2.route_id
@@ -517,7 +540,7 @@ class TestFlightRepository:
 
     def test_update_nonexistent_flight_raises(self, test_db):
         repo = FlightRepository(test_db)
-        fake = Flight(flight_id=uuid.uuid4(), route_id=uuid.uuid4(), aircraft_id=uuid.uuid4(), flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow())
+        fake = Flight(flight_id=uuid.uuid4(), route_id=uuid.uuid4(), aircraft_id=uuid.uuid4(), flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now())
         with pytest.raises(ValueError):
             repo.update(fake)
 
@@ -531,7 +554,7 @@ class TestFlightRepository:
         test_db.commit()
 
         repo = FlightRepository(test_db)
-        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow()))
+        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
 
         repo.delete(flight.flight_id)
         assert repo.get(flight.flight_id) is None
@@ -556,7 +579,7 @@ class TestFlightRepository:
 
         # create scheduled flight
         repo = FlightRepository(test_db)
-        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow()))
+        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
 
         found = repo.get_scheduled_by_city("OriginCity")
         assert any(f.flight_id == flight.flight_id for f in found)
@@ -572,7 +595,7 @@ class TestFlightRepository:
         test_db.commit()
 
         repo = FlightRepository(test_db)
-        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.utcnow(), arrival_time=datetime.utcnow()))
+        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
 
         updated = repo.update_flight_status_in_flight(flight.flight_id)
         assert updated.flight_status == FlightStatus.IN_FLIGHT

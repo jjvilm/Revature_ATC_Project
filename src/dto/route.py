@@ -48,7 +48,7 @@ class RouteDelete(BaseModel):
     Data schema for a user providing a route they wish to delete
     """
 
-    route_id: str = Field(
+    route_id: UUID = Field(
         ..., description="The route that the user wishes to delete"
     )
     authorization_code: str = Field(

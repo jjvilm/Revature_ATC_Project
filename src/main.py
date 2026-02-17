@@ -84,7 +84,7 @@ def get_aircraft_service(
 
 def get_in_flight_employee_service(
     employee_repo: InFlightEmployeeRepository = Depends(get_in_flight_employee_repository),
-    airport_repo: AircraftRepository = Depends(get_airport_repository)
+    airport_repo: AirportRepository = Depends(get_airport_repository)
 ) -> InFlightEmployeeService:
     return InFlightEmployeeService(employee_repo, airport_repo)
 
