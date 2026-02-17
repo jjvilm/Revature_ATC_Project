@@ -8,7 +8,7 @@ from enum import Enum
 from datetime import datetime
 
 from sqlalchemy import DateTime
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import Enum as SQLEnum
 from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
@@ -55,7 +55,7 @@ class Flight(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     route_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("route.route_id"), nullable=False
+        UUID(as_uuid=True), ForeignKey("route.route_id", ondelete="CASCADE"), nullable=False
     )
     flight_status: Mapped[FlightStatus] = mapped_column(
         SQLEnum(FlightStatus), default=FlightStatus.SCHEDULED
@@ -65,3 +65,8 @@ class Flight(Base):
     )
     arrival_time: Mapped[datetime] = mapped_column(DateTime)
     departure_time: Mapped[datetime] = mapped_column(DateTime)
+
+    route = relationship("Route", back_populates="flights")
+    
+    # Relationship to FlightCrew - Ensure deletion cascades here!
+    crew_members = relationship("FlightCrew", back_populates="flight", cascade="all, delete-orphan") 

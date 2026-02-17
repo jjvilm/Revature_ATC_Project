@@ -33,10 +33,10 @@ class FlightCreate(BaseModel):
     aircraft_id: UUID = Field(
         ..., description="ID of the aircraft assigned to the flight"
     )
-    arrival_time: datetime | None = Field(
+    arrival_time: datetime = Field(
         None, description="Projected arrival timestamp"
     )
-    departure_time: datetime | None = Field(
+    departure_time: datetime = Field(
         None, description="Projected departure timestamp"
     )
 
@@ -49,9 +49,9 @@ class FlightRead(BaseModel):
     flight_id: UUID = Field(
         ..., description="Unique database identifier for the flight"
     )
-    route_id: UUID = Field(..., description="Foreign key to the associated route")
-    flight_status: FlightStatus = Field(..., description="Current operational status")
-    aircraft_id: UUID = Field(..., description="Foreign key to the assigned aircraft")
+    route_id: UUID | None = Field(..., description="Foreign key to the associated route")
+    flight_status: FlightStatus | None = Field(..., description="Current operational status")
+    aircraft_id: UUID | None = Field(..., description="Foreign key to the assigned aircraft")
     arrival_time: datetime | None = Field(
         None, description="Actual or projected arrival time"
     )
@@ -60,3 +60,24 @@ class FlightRead(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+
+class FlightDelay(BaseModel):
+    """
+    Data schema for a user to supply a delay for a flight 
+    """
+    flight_id: UUID = Field(
+        ..., description = "Unique flight identifier"
+    )
+    
+    extra_minutes: int = Field(
+        ..., description = "Minutes to delay a flight by"
+    )
+
+class Flight_ID(BaseModel):
+    """
+    Data schema for a user who wishes to launch a flight
+    """
+
+    flight_id: UUID = Field(
+        ..., description = "Unique flight identifier"
+    )

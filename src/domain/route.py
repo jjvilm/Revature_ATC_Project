@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from sqlalchemy import ForeignKey, String
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.ext.hybrid import hybrid_property
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from src.base import Base
 
 
@@ -31,9 +31,7 @@ class Route(Base):
     route_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    destination_airport_code: Mapped[str] = mapped_column(
-        String, ForeignKey("airport.airport_code"), nullable=False
-    )
-    origin_airport_code: Mapped[str] = mapped_column(
-        String, ForeignKey("airport.airport_code"), nullable=False
-    )
+    origin_airport_code: Mapped[str] = mapped_column(nullable=False)
+    destination_airport_code: Mapped[str] = mapped_column(nullable=False)
+
+    flights = relationship("Flight", back_populates="route", cascade="all, delete-orphan")

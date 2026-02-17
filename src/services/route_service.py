@@ -67,7 +67,7 @@ class RouteService:
         candidate_flights = [
             flight
             for flight in self.flight_repo.list_all()
-            if flight.route_id == route_id  # FIX: Compare route_id, not flight_id
+            if flight.route_id == route_id  
         ]
 
         target_flight_ids = [f.flight_id for f in candidate_flights]
@@ -86,6 +86,9 @@ class RouteService:
 
         # Third: Delete the Route itself
         self.route_repo.delete(route_id)
+
+    def deletion_proposal(self, route_id: str):
+        return self.route_repo.deletion_proposal(route_id=route_id)
 
     def _validate_route(
         self,

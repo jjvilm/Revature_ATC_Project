@@ -10,15 +10,15 @@ INSERT INTO aircraft (aircraft_id, manufacturer, aircraft_model, current_distanc
 ('22222222-2222-2222-2222-222222222222', 'Airbus', 'A320', 18000, 20000, 'DEPLOYED', 'LAX'),
 ('33333333-3333-3333-3333-333333333333', 'Boeing', '787-9', 5000, 12000, 'AVAILABLE', 'ORD'),
 ('44444444-4444-4444-4444-444444444444', 'Embraer', 'E175', 21000, 25000, 'AOG', 'ATL'),
-('55555555-5555-5555-5555-555555555555', 'Airbus', 'A321', 8000, 15000, 'AVAILABLE', 'DFW');
-
+('55555555-5555-5555-5555-555555555555', 'Airbus', 'A321', 8000, 15000, 'AVAILABLE', 'DFW'),
+('66666666-6666-6666-6666-666666666666', 'Airbus', 'A321', 8000, 15000, 'AVAILABLE', 'DFW');
 
 INSERT INTO in_flight_employee (employee_id, first_name, last_name, position, employee_status, supervisor, employee_location) VALUES
-('aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'Sarah', 'Johnson', 'CAPTAIN', 'AVAILABLE', NULL, 'JFK'),
+('aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'Sarah', 'Johnson', 'CAPTAIN', 'AVAILABLE', 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'JFK'),
 ('aaaaaaa2-aaaa-aaaa-aaaa-aaaaaaaaaaa2', 'Michael', 'Smith', 'COPILOT', 'AVAILABLE', 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'JFK'),
 ('aaaaaaa3-aaaa-aaaa-aaaa-aaaaaaaaaaa3', 'Emily', 'Davis', 'FLIGHT_MANAGER', 'AVAILABLE', 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'JFK'),
 ('aaaaaaa4-aaaa-aaaa-aaaa-aaaaaaaaaaa4', 'James', 'Brown', 'FLIGHT_ATTENDANT', 'AVAILABLE', 'aaaaaaa1-aaaa-aaaa-aaaa-aaaaaaaaaaa1', 'JFK'),
-('aaaaaaa5-aaaa-aaaa-aaaa-aaaaaaaaaaa5', 'Olivia', 'Wilson', 'CAPTAIN', 'AVAILABLE', NULL, 'ATL'),
+('aaaaaaa5-aaaa-aaaa-aaaa-aaaaaaaaaaa5', 'Olivia', 'Wilson', 'CAPTAIN', 'AVAILABLE', 'aaaaaaa5-aaaa-aaaa-aaaa-aaaaaaaaaaa5', 'ATL'),
 ('aaaaaaa6-aaaa-aaaa-aaaa-aaaaaaaaaaa6', 'Jake', 'Martinez', 'COPILOT', 'AVAILABLE', 'aaaaaaa5-aaaa-aaaa-aaaa-aaaaaaaaaaa5', 'ATL'),
 ('aaaaaaa7-aaaa-aaaa-aaaa-aaaaaaaaaaa7', 'Paul', 'Martinez', 'FLIGHT_MANAGER', 'AVAILABLE', 'aaaaaaa5-aaaa-aaaa-aaaa-aaaaaaaaaaa5', 'ATL'),
 ('aaaaaaa8-aaaa-aaaa-aaaa-aaaaaaaaaaa8', 'Logan', 'Martinez', 'FLIGHT_ATTENDANT', 'AVAILABLE', 'aaaaaaa5-aaaa-aaaa-aaaa-aaaaaaaaaaa5', 'ATL');

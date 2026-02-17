@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 from sqlalchemy import ForeignKey
 from sqlalchemy.dialects.postgresql import UUID
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from src.base import Base
 
@@ -27,13 +27,13 @@ class FlightCrew(Base):
 
     flight_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
-        ForeignKey("flight.flight_id"),
-        primary_key=True,
-        nullable=False,
-    )  # composite key
+        ForeignKey("flight.flight_id", ondelete="CASCADE"), # DB Level Cascade
+        primary_key=True
+    )
     employee_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True),
         ForeignKey("in_flight_employee.employee_id"),
-        primary_key=True,
-        nullable=False,
-    )  # composite key
+        primary_key=True
+    )
+
+    flight = relationship("Flight", back_populates="crew_members")

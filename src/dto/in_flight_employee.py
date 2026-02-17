@@ -48,7 +48,6 @@ class InFlightEmployeeCreate(BaseModel):
         ..., description="IATA code for the current airport base"
     )
 
-
 class InFlightEmployeeRead(BaseModel):
     """
     Data schema for returning employee details in API responses.

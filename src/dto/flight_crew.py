@@ -15,6 +15,10 @@ class FlightCrewScheduleRequest(BaseModel):
     employee_ids: list[UUID] = Field(
         ..., min_length=1, description="List of employee IDs to assign to the flight"
     )
+    
+    flight_id: UUID = Field(
+        ..., description = "ID of a flight for employee scheduling"
+    )
 
 
 class FlightCrewBase(BaseModel):
@@ -22,8 +26,9 @@ class FlightCrewBase(BaseModel):
     Base properties for a crew-to-flight assignment.
     """
 
-    flight_id: UUID
+    flight_id: UUID 
     employee_id: UUID
+
 
 
 class FlightCrewRead(FlightCrewBase):

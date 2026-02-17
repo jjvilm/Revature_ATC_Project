@@ -1,7 +1,7 @@
 from typing import Optional
 from uuid import UUID
 
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from sqlalchemy.orm import Session
 
 from src.domain.flight import Flight, FlightStatus
@@ -65,14 +65,9 @@ class RouteRepository(RouteRepositoryProtocol):
         self, route_id: UUID
     ) -> tuple[list[Flight], list[FlightCrew]]:
 
-        # Define the statuses we care about
-        target_statuses = [FlightStatus.SCHEDULED, FlightStatus.DELAYED]
-
-        # 1. Fetch Flights
         flights = self.session.scalars(
             select(Flight)
             .where(Flight.route_id == route_id)
-            .where(Flight.flight_status.in_(target_statuses))  # Use .in_ for "OR" logic
         ).all()
 
         # 2. Fetch Flight Crew
@@ -82,7 +77,6 @@ class RouteRepository(RouteRepositoryProtocol):
                 Flight, Flight.flight_id == FlightCrew.flight_id
             )  # Fixed the join key here too
             .where(Flight.route_id == route_id)
-            .where(Flight.flight_status.in_(target_statuses))
         ).all()
 
         return (flights, flight_crew)

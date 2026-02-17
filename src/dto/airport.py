@@ -33,7 +33,7 @@ class AirportCreate(AirportBase):
     """
     Schema for registering a new airport in the system.
     """
-
+    
     pass
 
 

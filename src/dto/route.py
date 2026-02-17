@@ -6,6 +6,14 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+class RouteID(BaseModel):
+    """
+    Data schema for identifying a route.
+    """
+
+    route_id: UUID = Field(
+        ..., description = "UUID for a route"
+    )
 
 class RouteCreate(BaseModel):
     """
@@ -34,3 +42,15 @@ class RouteRead(BaseModel):
     )
 
     model_config = ConfigDict(from_attributes=True)
+    
+class RouteDelete(BaseModel):
+    """
+    Data schema for a user providing a route they wish to delete
+    """
+
+    route_id: str = Field(
+        ..., description="The route that the user wishes to delete"
+    )
+    authorization_code: str = Field(
+        ..., description="The authorization code that the user must provide for deletion."
+    )
