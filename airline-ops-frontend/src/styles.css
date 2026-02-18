@@ -1,0 +1,61 @@
+@import "leaflet/dist/leaflet.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: rgba(56, 189, 248, 0.22);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.flight-path {
+  stroke-dasharray: 10 10;
+  animation: flight-path-draw 2.4s linear infinite;
+}
+
+@keyframes flight-path-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.leaflet-tooltip.flight-tooltip {
+  background: rgba(15, 23, 42, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #f8fafc;
+  opacity: 1 !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
+.leaflet-tooltip-top.flight-tooltip::before {
+  border-top-color: rgba(15, 23, 42, 0.98);
+}
+
+.leaflet-tooltip-bottom.flight-tooltip::before {
+  border-bottom-color: rgba(15, 23, 42, 0.98);
+}
+
+.leaflet-tooltip-left.flight-tooltip::before {
+  border-left-color: rgba(15, 23, 42, 0.98);
+}
+
+.leaflet-tooltip-right.flight-tooltip::before {
+  border-right-color: rgba(15, 23, 42, 0.98);
+}

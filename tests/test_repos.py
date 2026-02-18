@@ -3,30 +3,23 @@ from datetime import datetime
 
 import pytest
 from sqlalchemy import create_engine
-from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.orm import sessionmaker
 
 from src.base import Base
 from src.domain.aircraft import Aircraft
-from src.domain.airline import Airline
 from src.domain.airport import Airport
+
 from src.domain.flight import Flight, FlightStatus
 from src.domain.flight_crew import FlightCrew
-from src.domain.in_flight_employee import EmployeePosition, InFlightEmployee
-from src.domain.operates import Operates
+from src.domain.in_flight_employee import EmployeePosition, InFlightEmployee, InFlightStatus
 from src.domain.route import Route
 from src.repositories.aircraft_repository import AircraftRepository
-from src.repositories.airline_repository import AirlineRepository
 from src.repositories.airport_repository import AirportRepository
 from src.repositories.flight_crew_repository import FlightCrewRepository
 from src.repositories.flight_repository import FlightRepository
 from src.repositories.in_flight_employee_repository import InFlightEmployeeRepository
-from src.repositories.operates_repository import OperatesRepository
 from src.repositories.route_repository import RouteRepository
-
-# ============================================================================
-# Test Database Setup
-# ============================================================================
-
+from src.domain.aircraft import AircraftStatus
 
 @pytest.fixture(scope="function")
 def test_db():
@@ -42,1366 +35,567 @@ def test_db():
     session.close()
     engine.dispose()
 
-
-# ============================================================================
-# Airline Repository Tests
-# ============================================================================
-
-
-class TestAirlineRepository:
-    """Tests for AirlineRepository CRUD operations."""
-
-    def test_create_airline(self, test_db):
-        """Test creating a new airline."""
-        repo = AirlineRepository(test_db)
-        airline = Airline(airline_designator="AA", name="American Airlines")
-
-        result = repo.create(airline)
-
-        assert result.airline_designator == "AA"
-        assert result.name == "American Airlines"
-
-    def test_create_multiple_airlines(self, test_db):
-        """Test creating multiple airlines."""
-        repo = AirlineRepository(test_db)
-        airline1 = Airline(airline_designator="AA", name="American Airlines")
-        airline2 = Airline(airline_designator="UA", name="United Airlines")
-
-        repo.create(airline1)
-        repo.create(airline2)
-
-        assert repo.list_all().__len__() == 2
-
-    def test_get_airline_by_designator(self, test_db):
-        """Test retrieving an airline by designator."""
-        repo = AirlineRepository(test_db)
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        repo.create(airline)
-
-        result = repo.get("AA")
-
-        assert result is not None
-        assert result.airline_designator == "AA"
-        assert result.name == "American Airlines"
-
-    def test_get_nonexistent_airline(self, test_db):
-        """Test retrieving a nonexistent airline returns None."""
-        repo = AirlineRepository(test_db)
-
-        result = repo.get("XX")
-
-        assert result is None
-
-    def test_list_all_airlines(self, test_db):
-        """Test listing all airlines."""
-        repo = AirlineRepository(test_db)
-        airlines = [
-            Airline(airline_designator="AA", name="American Airlines"),
-            Airline(airline_designator="UA", name="United Airlines"),
-            Airline(airline_designator="DL", name="Delta Airlines"),
-        ]
-        for airline in airlines:
-            repo.create(airline)
-
-        result = repo.list_all()
-
-        assert len(result) == 3
-        assert all(isinstance(a, Airline) for a in result)
-
-    def test_list_all_airlines_empty(self, test_db):
-        """Test listing all airlines when none exist."""
-        repo = AirlineRepository(test_db)
-
-        result = repo.list_all()
-
-        assert result == []
-
-    def test_update_airline(self, test_db):
-        """Test updating an airline."""
-        repo = AirlineRepository(test_db)
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        repo.create(airline)
-
-        airline.name = "American Airlines Updated"
-        result = repo.update(airline)
-
-        assert result.name == "American Airlines Updated"
-        assert result.airline_designator == "AA"
-
-    def test_update_nonexistent_airline(self, test_db):
-        """Test updating a nonexistent airline raises ValueError."""
-        repo = AirlineRepository(test_db)
-        airline = Airline(airline_designator="XX", name="Unknown Airlines")
-
-        with pytest.raises(ValueError, match="Airline not found"):
-            repo.update(airline)
-
-    def test_delete_airline(self, test_db):
-        """Test deleting an airline."""
-        repo = AirlineRepository(test_db)
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        repo.create(airline)
-
-        repo.delete("AA")
-
-        result = repo.get("AA")
-        assert result is None
-
-    def test_delete_nonexistent_airline(self, test_db):
-        """Test deleting a nonexistent airline raises ValueError."""
-        repo = AirlineRepository(test_db)
-
-        with pytest.raises(ValueError, match="no airline found"):
-            repo.delete("XX")
-
-
-"""
-# ============================================================================
-# Airport Repository Tests
-# ============================================================================
-
 class TestAirportRepository:
-    #Tests for AirportRepository CRUD operations.
-    
-    def test_create_airport(self, test_db):
-        #Test creating a new airport.
+    def test_create_and_get_airport(self, test_db):
         repo = AirportRepository(test_db)
         airport = Airport(
-            airport_code="JFK",
-            airport_name="John F. Kennedy International Airport",
-            airport_country="USA",
-            airport_city="New York",
-            airport_address="Jamaica, Queens, New York"
-        )
-        
-        result = repo.create(airport)
-        
-        assert result.airport_code == "JFK"
-        assert result.airport_name == "John F. Kennedy International Airport"
-    
-    def test_create_multiple_airports(self, test_db):
-        #Test creating multiple airports.
-        repo = AirportRepository(test_db)
-        airports = [
-            Airport(airport_code="JFK", airport_name="JFK", airport_country="USA", 
-                   airport_city="New York", airport_address="Jamaica, Queens"),
-            Airport(airport_code="LAX", airport_name="LAX", airport_country="USA",
-                   airport_city="Los Angeles", airport_address="El Segundo"),
-        ]
-        for airport in airports:
-            repo.create(airport)
-        
-        assert len(repo.list_all()) == 2
-    
-    def test_get_airport_by_code(self, test_db):
-        #Test retrieving an airport by code.#
-        repo = AirportRepository(test_db)
-        airport = Airport(
-            airport_code="JFK", airport_name="JFK",
-            airport_country="USA", airport_city="New York",
-            airport_address="Jamaica, Queens"
+            airport_code="TEST",
+            airport_name="Test Airport",
+            airport_country="Test Country",
+            airport_city="Test City",
+            airport_address="123 Test St",
+            longitude=10.0,
+            latitude=20.0,
         )
         repo.create(airport)
-        
-        result = repo.get("JFK")
-        
-        assert result is not None
-        assert result.airport_code == "JFK"
-    
+
+        # Assuming the model uses 'airport_code' as the primary key
+        retrieved = repo.get(airport.airport_code)
+        assert retrieved is not None
+        assert retrieved.airport_name == "Test Airport"
+        assert retrieved.airport_code == "TEST"
+
     def test_get_nonexistent_airport(self, test_db):
-        #Test retrieving a nonexistent airport returns None.#
         repo = AirportRepository(test_db)
-        
-        result = repo.get("XXX")
-        
-        assert result is None
-    
+        retrieved = repo.get(uuid.uuid4())
+        assert retrieved is None
+
     def test_list_all_airports(self, test_db):
-        #Test listing all airports.#
         repo = AirportRepository(test_db)
-        for code in ["JFK", "LAX", "ORD"]:
-            airport = Airport(
-                airport_code=code, airport_name=f"{code} Airport",
-                airport_country="USA", airport_city="City",
-                airport_address="Address"
-            )
-            repo.create(airport)
-        
-        result = repo.list_all()
-        
-        assert len(result) == 3
-    
-    def test_list_all_airports_empty(self, test_db):
-        #Test listing all airports when none exist.#
-        repo = AirportRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
+        a1 = Airport(airport_code="T1", airport_name="A1", airport_country="C", airport_city="City", airport_address="Add", longitude=0, latitude=0)
+        a2 = Airport(airport_code="T2", airport_name="A2", airport_country="C", airport_city="City", airport_address="Add", longitude=0, latitude=0)
+        repo.create(a1)
+        repo.create(a2)
+
+        airports = repo.list_all()
+        assert len(airports) == 2
+        codes = {a.airport_code for a in airports}
+        assert "T1" in codes and "T2" in codes
+
     def test_update_airport(self, test_db):
-        #Test updating an airport.#
         repo = AirportRepository(test_db)
         airport = Airport(
-            airport_code="JFK", airport_name="JFK",
-            airport_country="USA", airport_city="New York",
-            airport_address="Jamaica, Queens"
+            airport_code="OLD",
+            airport_name="Old Name",
+            airport_country="Test",
+            airport_city="Old City",
+            airport_address="123 St",
+            longitude=0.0,
+            latitude=0.0,
         )
         repo.create(airport)
-        
-        airport.airport_name = "Kennedy International"
-        airport.airport_city = "New York City"
-        result = repo.update(airport)
-        
-        assert result.airport_name == "Kennedy International"
-        assert result.airport_city == "New York City"
-    
-    def test_update_nonexistent_airport(self, test_db):
-        #Test updating a nonexistent airport raises ValueError.#
-        repo = AirportRepository(test_db)
-        airport = Airport(
-            airport_code="XXX", airport_name="Unknown",
-            airport_country="Unknown", airport_city="Unknown",
-            airport_address="Unknown"
-        )
-        
-        with pytest.raises(ValueError, match="Airport not found"):
-            repo.update(airport)
-    
+
+        # FIXED: Using correct attribute names defined in your Airport domain
+        airport.airport_name = "Updated Name"
+        airport.airport_city = "Updated City"
+        repo.update(airport)
+
+        retrieved = repo.get(airport.airport_code)
+        assert retrieved.airport_name == "Updated Name"
+        assert retrieved.airport_city == "Updated City"
+
     def test_delete_airport(self, test_db):
-        #Test deleting an airport.#
         repo = AirportRepository(test_db)
-        airport = Airport(
-            airport_code="JFK", airport_name="JFK",
-            airport_country="USA", airport_city="New York",
-            airport_address="Jamaica, Queens"
-        )
+        airport = Airport(airport_code="DEL", airport_name="Delete Me", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0)
         repo.create(airport)
         
-        repo.delete("JFK")
-        
-        result = repo.get("JFK")
-        assert result is None
-    
-    def test_delete_nonexistent_airport(self, test_db):
-        #Test deleting a nonexistent airport raises ValueError.#
-        repo = AirportRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Airport not found"):
-            repo.delete("XXX")
-
-
-# ============================================================================
-# Aircraft Repository Tests
-# ============================================================================
+        repo.delete(airport.airport_code)
+        assert repo.get(airport.airport_code) is None
 
 class TestAircraftRepository:
-    #Tests for AircraftRepository CRUD operations.#
-    
-    @pytest.fixture
-    def airline_dependency(self, test_db):
-        #Create an airline for aircraft tests.#
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        test_db.add(airline)
-        test_db.commit()
-        return airline
-    
-    def test_create_aircraft(self, test_db, airline_dependency):
-        #Test creating a new aircraft.#
+    def test_create_and_get_aircraft(self, test_db):
         repo = AircraftRepository(test_db)
         aircraft = Aircraft(
-            aircraft_id=uuid.uuid4(),
-            airline_designator="AA",
             manufacturer="Boeing",
-            aircraft_model="747"
-        )
-        
-        result = repo.create(aircraft)
-        
-        assert result.manufacturer == "Boeing"
-        assert result.aircraft_model == "747"
-        assert result.airline_designator == "AA"
-    
-    def test_create_multiple_aircraft(self, test_db, airline_dependency):
-        #Test creating multiple aircraft.#
-        repo = AircraftRepository(test_db)
-        aircraft1 = Aircraft(aircraft_id=uuid.uuid4(), airline_designator="AA",
-                            manufacturer="Boeing", aircraft_model="747")
-        aircraft2 = Aircraft(aircraft_id=uuid.uuid4(), airline_designator="AA",
-                            manufacturer="Airbus", aircraft_model="A380")
-        
-        repo.create(aircraft1)
-        repo.create(aircraft2)
-        
-        assert len(repo.list_all()) == 2
-    
-    def test_get_aircraft_by_id(self, test_db, airline_dependency):
-        #Test retrieving an aircraft by ID.#
-        repo = AircraftRepository(test_db)
-        aircraft_id = uuid.uuid4()
-        aircraft = Aircraft(
-            aircraft_id=aircraft_id,
-            airline_designator="AA",
-            manufacturer="Boeing",
-            aircraft_model="747"
+            aircraft_model="737",
+            current_distance=0.0,
+            maintenance_interval=100.0,
+            aircraft_status=AircraftStatus.AVAILABLE,
+            aircraft_location="TST"
         )
         repo.create(aircraft)
-        
-        result = repo.get(aircraft_id)
-        
-        assert result is not None
-        assert result.aircraft_id == aircraft_id
-        assert result.manufacturer == "Boeing"
-    
-    def test_get_nonexistent_aircraft(self, test_db):
-        #Test retrieving a nonexistent aircraft returns None.#
+
+        # FIXED: Consistency with aircraft_id
+        retrieved = repo.get(aircraft.aircraft_id)
+        assert retrieved is not None
+        assert retrieved.aircraft_model == "737"
+        assert retrieved.aircraft_id is not None # Validates UUID generation
+
+    def test_list_all_aircrafts(self, test_db):
         repo = AircraftRepository(test_db)
-        
-        result = repo.get(uuid.uuid4())
-        
-        assert result is None
-    
-    def test_list_all_aircraft(self, test_db, airline_dependency):
-        #Test listing all aircraft.#
-        repo = AircraftRepository(test_db)
-        for i in range(3):
-            aircraft = Aircraft(
-                aircraft_id=uuid.uuid4(),
-                airline_designator="AA",
-                manufacturer=f"Manufacturer{i}",
-                aircraft_model=f"Model{i}"
-            )
-            repo.create(aircraft)
-        
-        result = repo.list_all()
-        
-        assert len(result) == 3
-    
-    def test_list_all_aircraft_empty(self, test_db):
-        #Test listing all aircraft when none exist.#
-        repo = AircraftRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
-    def test_update_aircraft(self, test_db, airline_dependency):
-        #Test updating an aircraft.#
-        repo = AircraftRepository(test_db)
-        aircraft_id = uuid.uuid4()
-        aircraft = Aircraft(
-            aircraft_id=aircraft_id,
-            airline_designator="AA",
-            manufacturer="Boeing",
-            aircraft_model="747"
-        )
-        repo.create(aircraft)
-        
-        aircraft.aircraft_model = "777"
-        aircraft.manufacturer = "Boeing Updated"
-        result = repo.update(aircraft)
-        
-        assert result.aircraft_model == "777"
-        assert result.manufacturer == "Boeing Updated"
-    
-    def test_update_nonexistent_aircraft(self, test_db):
-        #Test updating a nonexistent aircraft raises ValueError.#
-        repo = AircraftRepository(test_db)
-        aircraft = Aircraft(
-            aircraft_id=uuid.uuid4(),
-            airline_designator="AA",
-            manufacturer="Boeing",
-            aircraft_model="747"
-        )
-        
-        with pytest.raises(ValueError, match="Aircraft not found"):
-            repo.update(aircraft)
-    
-    def test_delete_aircraft(self, test_db, airline_dependency):
-        #Test deleting an aircraft.#
-        repo = AircraftRepository(test_db)
-        aircraft_id = uuid.uuid4()
-        aircraft = Aircraft(
-            aircraft_id=aircraft_id,
-            airline_designator="AA",
-            manufacturer="Boeing",
-            aircraft_model="747"
-        )
-        repo.create(aircraft)
-        
-        repo.delete(aircraft_id)
-        
-        result = repo.get(aircraft_id)
-        assert result is None
-    
-    def test_delete_nonexistent_aircraft(self, test_db):
-        #Test deleting a nonexistent aircraft raises ValueError.#
-        repo = AircraftRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Aircraft not found"):
-            repo.delete(uuid.uuid4())
+        repo.create(Aircraft(manufacturer="A", aircraft_model="M1", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="L"))
+        repo.create(Aircraft(manufacturer="B", aircraft_model="M2", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="L"))
 
+        aircrafts = repo.list_all()
+        assert len(aircrafts) == 2
 
-# ============================================================================
-# Route Repository Tests
-# ============================================================================
+    def test_available_aircraft_by_airport(self, test_db):
+        # 1. Setup Dependencies
+        airport_repo = AirportRepository(test_db)
+        airport = Airport(
+            airport_code="JFK",
+            airport_name="John F Kennedy",
+            airport_country="USA",
+            airport_city="NY",
+            airport_address="Queens",
+            longitude=0,
+            latitude=0
+        )
+        airport_repo.create(airport)
 
-class TestRouteRepository:
-    #Tests for RouteRepository CRUD operations.#
-    
-    @pytest.fixture
-    def airports_dependency(self, test_db):
-        #Create airports for route tests.#
-        airports = [
-            Airport(airport_code="JFK", airport_name="JFK", airport_country="USA",
-                   airport_city="New York", airport_address="Jamaica"),
-            Airport(airport_code="LAX", airport_name="LAX", airport_country="USA",
-                   airport_city="Los Angeles", airport_address="El Segundo"),
-        ]
-        for airport in airports:
-            test_db.add(airport)
-        test_db.commit()
-        return airports
-    
-    def test_create_route(self, test_db, airports_dependency):
-        #Test creating a new route.#
-        repo = RouteRepository(test_db)
-        route = Route(
-            route_id=uuid.uuid4(),
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
+        # 2. Setup Aircraft
+        aircraft_repo = AircraftRepository(test_db)
+        a1 = Aircraft(
+            manufacturer="Airbus",
+            aircraft_model="A320",
+            current_distance=0,
+            maintenance_interval=500,
+            aircraft_status=AircraftStatus.AVAILABLE,
+            aircraft_location="JFK" # Matches airport_code
+        )
+        a2 = Aircraft(
+            manufacturer="Airbus",
+            aircraft_model="A380",
+            current_distance=0,
+            maintenance_interval=500,
+            aircraft_status=AircraftStatus.AOG, # Out of service
+            aircraft_location="JFK"
         )
         
-        result = repo.create(route)
-        
-        assert result.origin_airport_code == "JFK"
-        assert result.destination_airport_code == "LAX"
-    
-    def test_create_multiple_routes(self, test_db, airports_dependency):
-        #Test creating multiple routes.#
-        repo = RouteRepository(test_db)
-        route1 = Route(route_id=uuid.uuid4(), origin_airport_code="JFK",
-                      destination_airport_code="LAX")
-        route2 = Route(route_id=uuid.uuid4(), origin_airport_code="LAX",
-                      destination_airport_code="JFK")
-        
-        repo.create(route1)
-        repo.create(route2)
-        
-        assert len(repo.list_all()) == 2
-    
-    def test_get_route_by_id(self, test_db, airports_dependency):
-        #Test retrieving a route by ID.#
-        repo = RouteRepository(test_db)
-        route_id = uuid.uuid4()
-        route = Route(
-            route_id=route_id,
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
-        )
-        repo.create(route)
-        
-        result = repo.get(route_id)
-        
-        assert result is not None
-        assert result.route_id == route_id
-        assert result.origin_airport_code == "JFK"
-    
-    def test_get_nonexistent_route(self, test_db):
-        #Test retrieving a nonexistent route returns None.#
-        repo = RouteRepository(test_db)
-        
-        result = repo.get(uuid.uuid4())
-        
-        assert result is None
-    
-    def test_list_all_routes(self, test_db, airports_dependency):
-        #Test listing all routes.#
-        repo = RouteRepository(test_db)
-        for i in range(3):
-            route = Route(
-                route_id=uuid.uuid4(),
-                origin_airport_code="JFK",
-                destination_airport_code="LAX"
-            )
-            repo.create(route)
-        
-        result = repo.list_all()
-        
-        assert len(result) == 3
-    
-    def test_list_all_routes_empty(self, test_db):
-        #Test listing all routes when none exist.#
-        repo = RouteRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
-    def test_update_route(self, test_db, airports_dependency):
-        #Test updating a route.#
-        repo = RouteRepository(test_db)
-        route_id = uuid.uuid4()
-        route = Route(
-            route_id=route_id,
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
-        )
-        repo.create(route)
-        
-        route.destination_airport_code = "LAX"
-        result = repo.update(route)
-        
-        assert result.destination_airport_code == "LAX"
-    
-    def test_update_nonexistent_route(self, test_db):
-        #Test updating a nonexistent route raises ValueError.#
-        repo = RouteRepository(test_db)
-        route = Route(
-            route_id=uuid.uuid4(),
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
-        )
-        
-        with pytest.raises(ValueError, match="Route not found"):
-            repo.update(route)
-    
-    def test_delete_route(self, test_db, airports_dependency):
-        #Test deleting a route.#
-        repo = RouteRepository(test_db)
-        route_id = uuid.uuid4()
-        route = Route(
-            route_id=route_id,
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
-        )
-        repo.create(route)
-        
-        repo.delete(route_id)
-        
-        result = repo.get(route_id)
-        assert result is None
-    
-    def test_delete_nonexistent_route(self, test_db):
-        #Test deleting a nonexistent route raises ValueError.#
-        repo = RouteRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Route not found"):
-            repo.delete(uuid.uuid4())
+        created_a1 = aircraft_repo.create(a1)
+        aircraft_repo.create(a2)
 
+        # 3. Test logic - Assuming search is done by the Airport's Primary Key (UUID)
+        available = aircraft_repo.available_aircraft_by_airport(airport.airport_code)
+        
+        assert len(available) == 1
+        assert available[0].aircraft_id == created_a1.aircraft_id
+        assert available[0].aircraft_status == AircraftStatus.AVAILABLE
 
-# ============================================================================
-# Flight Repository Tests
-# ============================================================================
-
-class TestFlightRepository:
-    #Tests for FlightRepository CRUD operations.#
-    
-    @pytest.fixture
-    def flight_dependencies(self, test_db):
-        #Create dependencies for flight tests.#
-        # Create airline
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        test_db.add(airline)
-        
-        # Create airports
-        airports = [
-            Airport(airport_code="JFK", airport_name="JFK", airport_country="USA",
-                   airport_city="New York", airport_address="Jamaica"),
-            Airport(airport_code="LAX", airport_name="LAX", airport_country="USA",
-                   airport_city="Los Angeles", airport_address="El Segundo"),
-        ]
-        for airport in airports:
-            test_db.add(airport)
-        
-        # Create route
-        route = Route(
-            route_id=uuid.uuid4(),
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
-        )
-        test_db.add(route)
-        
-        # Create aircraft
-        aircraft = Aircraft(
-            aircraft_id=uuid.uuid4(),
-            airline_designator="AA",
-            manufacturer="Boeing",
-            aircraft_model="747"
-        )
-        test_db.add(aircraft)
-        
-        test_db.commit()
-        return {
-            "route": route,
-            "aircraft": aircraft,
-            "airline": airline
-        }
-    
-    def test_create_flight(self, test_db, flight_dependencies):
-        #Test creating a new flight.#
-        repo = FlightRepository(test_db)
-        flight = Flight(
-            flight_id=uuid.uuid4(),
-            route_id=flight_dependencies["route"].route_id,
-            aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-            flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime(2026, 2, 12, 10, 0),
-            arrival_time=datetime(2026, 2, 12, 14, 0)
-        )
-        
-        result = repo.create(flight)
-        
-        assert result.flight_status == FlightStatus.SCHEDULED
-        assert result.route_id == flight_dependencies["route"].route_id
-    
-    def test_create_multiple_flights(self, test_db, flight_dependencies):
-        #Test creating multiple flights.#
-        repo = FlightRepository(test_db)
-        for i in range(3):
-            flight = Flight(
-                flight_id=uuid.uuid4(),
-                route_id=flight_dependencies["route"].route_id,
-                aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-                flight_status=FlightStatus.SCHEDULED,
-                dept_time=datetime(2026, 2, 12, 10 + i, 0),
-                arrival_time=datetime(2026, 2, 12, 14 + i, 0)
-            )
-            repo.create(flight)
-        
-        assert len(repo.list_all()) == 3
-    
-    def test_get_flight_by_id(self, test_db, flight_dependencies):
-        #Test retrieving a flight by ID.#
-        repo = FlightRepository(test_db)
-        flight_id = uuid.uuid4()
-        flight = Flight(
-            flight_id=flight_id,
-            route_id=flight_dependencies["route"].route_id,
-            aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-            flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime(2026, 2, 12, 10, 0),
-            arrival_time=datetime(2026, 2, 12, 14, 0)
-        )
-        repo.create(flight)
-        
-        result = repo.get(flight_id)
-        
-        assert result is not None
-        assert result.flight_id == flight_id
-        assert result.flight_status == FlightStatus.SCHEDULED
-    
-    def test_get_nonexistent_flight(self, test_db):
-        #Test retrieving a nonexistent flight returns None.#
-        repo = FlightRepository(test_db)
-        
-        result = repo.get(uuid.uuid4())
-        
-        assert result is None
-    
-    def test_list_all_flights(self, test_db, flight_dependencies):
-        #Test listing all flights.#
-        repo = FlightRepository(test_db)
-        for i in range(3):
-            flight = Flight(
-                flight_id=uuid.uuid4(),
-                route_id=flight_dependencies["route"].route_id,
-                aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-                flight_status=FlightStatus.SCHEDULED,
-                dept_time=datetime(2026, 2, 12, 10 + i, 0),
-                arrival_time=datetime(2026, 2, 12, 14 + i, 0)
-            )
-            repo.create(flight)
-        
-        result = repo.list_all()
-        
-        assert len(result) == 3
-    
-    def test_list_all_flights_empty(self, test_db):
-        #Test listing all flights when none exist.#
-        repo = FlightRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
-    def test_update_flight(self, test_db, flight_dependencies):
-        #Test updating a flight.#
-        repo = FlightRepository(test_db)
-        flight_id = uuid.uuid4()
-        flight = Flight(
-            flight_id=flight_id,
-            route_id=flight_dependencies["route"].route_id,
-            aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-            flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime(2026, 2, 12, 10, 0),
-            arrival_time=datetime(2026, 2, 12, 14, 0)
-        )
-        repo.create(flight)
-        
-        flight.flight_status = FlightStatus.DEPARTED
-        result = repo.update(flight)
-        
-        assert result.flight_status == FlightStatus.DEPARTED
-    
-    def test_update_flight_all_fields(self, test_db, flight_dependencies):
-        #Test updating all flight fields.#
-        repo = FlightRepository(test_db)
-        flight_id = uuid.uuid4()
-        flight = Flight(
-            flight_id=flight_id,
-            route_id=flight_dependencies["route"].route_id,
-            aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-            flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime(2026, 2, 12, 10, 0),
-            arrival_time=datetime(2026, 2, 12, 14, 0)
-        )
-        repo.create(flight)
-        
-        new_time = datetime(2026, 2, 13, 15, 0)
-        flight.flight_status = FlightStatus.EN_ROUTE
-        flight.dept_time = new_time
-        flight.arrival_time = new_time
-        result = repo.update(flight)
-        
-        assert result.flight_status == FlightStatus.EN_ROUTE
-        assert result.dept_time == new_time
-    
-    def test_update_nonexistent_flight(self, test_db):
-        #Test updating a nonexistent flight raises ValueError.#
-        repo = FlightRepository(test_db)
-        flight = Flight(
-            flight_id=uuid.uuid4(),
-            route_id=uuid.uuid4(),
-            aircraft_id=uuid.uuid4(),
-            flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime.now(),
-            arrival_time=datetime.now()
-        )
-        
-        with pytest.raises(ValueError, match="Flight not found"):
-            repo.update(flight)
-    
-    def test_delete_flight(self, test_db, flight_dependencies):
-        #Test deleting a flight.#
-        repo = FlightRepository(test_db)
-        flight_id = uuid.uuid4()
-        flight = Flight(
-            flight_id=flight_id,
-            route_id=flight_dependencies["route"].route_id,
-            aircraft_id=flight_dependencies["aircraft"].aircraft_id,
-            flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime(2026, 2, 12, 10, 0),
-            arrival_time=datetime(2026, 2, 12, 14, 0)
-        )
-        repo.create(flight)
-        
-        repo.delete(flight_id)
-        
-        result = repo.get(flight_id)
-        assert result is None
-    
-    def test_delete_nonexistent_flight(self, test_db):
-        #Test deleting a nonexistent flight raises ValueError.#
-        repo = FlightRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Flight not found"):
-            repo.delete(uuid.uuid4())
-
-
-# ============================================================================
-# In-Flight Employee Repository Tests
-# ============================================================================
-
-class TestInFlightEmployeeRepository:
-    #Tests for InFlightEmployeeRepository CRUD operations.#
-    
-    @pytest.fixture
-    def airline_dependency(self, test_db):
-        #Create an airline for employee tests.#
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        test_db.add(airline)
-        test_db.commit()
-        return airline
-    
-    def test_create_employee(self, test_db, airline_dependency):
-        #Test creating a new employee.#
-        repo = InFlightEmployeeRepository(test_db)
-        employee = InFlightEmployee(
-            employee_id=uuid.uuid4(),
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
-            position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
-        )
-        
-        result = repo.create(employee)
-        
-        assert result.f_name == "John"
-        assert result.l_name == "Doe"
-        assert result.position == EmployeePosition.CAPTAIN
-    
-    def test_create_multiple_employees(self, test_db, airline_dependency):
-        #Test creating multiple employees.#
-        repo = InFlightEmployeeRepository(test_db)
-        positions = [EmployeePosition.CAPTAIN, EmployeePosition.COPILOT, EmployeePosition.FLIGHT_ATTENDANT]
-        
-        for i, position in enumerate(positions):
-            employee = InFlightEmployee(
-                employee_id=uuid.uuid4(),
-                airline_designator="AA",
-                f_name=f"Employee{i}",
-                l_name=f"Last{i}",
-                position=position,
-                status="Active",
-                supervised=None
-            )
-            repo.create(employee)
-        
-        assert len(repo.list_all()) == 3
-    
-    def test_get_employee_by_id(self, test_db, airline_dependency):
-        #Test retrieving an employee by ID.#
-        repo = InFlightEmployeeRepository(test_db)
-        employee_id = uuid.uuid4()
-        employee = InFlightEmployee(
-            employee_id=employee_id,
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
-            position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
-        )
-        repo.create(employee)
-        
-        result = repo.get(employee_id)
-        
-        assert result is not None
-        assert result.employee_id == employee_id
-        assert result.f_name == "John"
-    
-    def test_get_nonexistent_employee(self, test_db):
-        #Test retrieving a nonexistent employee returns None.#
-        repo = InFlightEmployeeRepository(test_db)
-        
-        result = repo.get(uuid.uuid4())
-        
-        assert result is None
-    
-    def test_list_all_employees(self, test_db, airline_dependency):
-        #Test listing all employees.#
-        repo = InFlightEmployeeRepository(test_db)
-        for i in range(3):
-            employee = InFlightEmployee(
-                employee_id=uuid.uuid4(),
-                airline_designator="AA",
-                f_name=f"Employee{i}",
-                l_name=f"Last{i}",
-                position=EmployeePosition.FLIGHT_ATTENDANT,
-                status="Active",
-                supervised=None
-            )
-            repo.create(employee)
-        
-        result = repo.list_all()
-        
-        assert len(result) == 3
-    
-    def test_list_all_employees_empty(self, test_db):
-        #Test listing all employees when none exist.#
-        repo = InFlightEmployeeRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
-    def test_update_employee(self, test_db, airline_dependency):
-        #Test updating an employee.#
-        repo = InFlightEmployeeRepository(test_db)
-        employee_id = uuid.uuid4()
-        employee = InFlightEmployee(
-            employee_id=employee_id,
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
-            position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
-        )
-        repo.create(employee)
-        
-        employee.f_name = "Jane"
-        employee.position = EmployeePosition.COPILOT
-        result = repo.update(employee)
-        
-        assert result.f_name == "Jane"
-        assert result.position == EmployeePosition.COPILOT
-    
-    def test_update_employee_all_fields(self, test_db, airline_dependency):
-        #Test updating all employee fields.#
-        repo = InFlightEmployeeRepository(test_db)
-        employee_id = uuid.uuid4()
-        supervised_id = uuid.uuid4()
-        
-        employee = InFlightEmployee(
-            employee_id=employee_id,
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
-            position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
-        )
-        repo.create(employee)
-        
-        employee.f_name = "Jane"
-        employee.l_name = "Smith"
-        employee.position = EmployeePosition.MANAGER
-        employee.status = "Inactive"
-        employee.supervised = supervised_id
-        result = repo.update(employee)
-        
-        assert result.f_name == "Jane"
-        assert result.l_name == "Smith"
-        assert result.position == EmployeePosition.MANAGER
-        assert result.status == "Inactive"
-        assert result.supervised == supervised_id
-    
-    def test_update_nonexistent_employee(self, test_db):
-        #Test updating a nonexistent employee raises ValueError.#
-        repo = InFlightEmployeeRepository(test_db)
-        employee = InFlightEmployee(
-            employee_id=uuid.uuid4(),
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
-            position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
-        )
-        
-        with pytest.raises(ValueError, match="Employee not found"):
-            repo.update(employee)
-    
-    def test_delete_employee(self, test_db, airline_dependency):
-        #Test deleting an employee.#
-        repo = InFlightEmployeeRepository(test_db)
-        employee_id = uuid.uuid4()
-        employee = InFlightEmployee(
-            employee_id=employee_id,
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
-            position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
-        )
-        repo.create(employee)
-        
-        repo.delete(employee_id)
-        
-        result = repo.get(employee_id)
-        assert result is None
-    
-    def test_delete_nonexistent_employee(self, test_db):
-        #Test deleting a nonexistent employee raises ValueError.#
-        repo = InFlightEmployeeRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Employee not found"):
-            repo.delete(uuid.uuid4())
-
-
-# ============================================================================
-# Flight Crew Repository Tests
-# ============================================================================
 
 class TestFlightCrewRepository:
-    #Tests for FlightCrewRepository CRUD operations.#
-    
-    @pytest.fixture
     def flight_crew_dependencies(self, test_db):
-        #Create dependencies for flight crew tests.#
-        # Create airline
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        test_db.add(airline)
-        
         # Create airports
-        airports = [
-            Airport(airport_code="JFK", airport_name="JFK", airport_country="USA",
-                   airport_city="New York", airport_address="Jamaica"),
-            Airport(airport_code="LAX", airport_name="LAX", airport_country="USA",
-                   airport_city="Los Angeles", airport_address="El Segundo"),
-        ]
-        for airport in airports:
-            test_db.add(airport)
-        
-        # Create route
-        route = Route(
-            route_id=uuid.uuid4(),
-            origin_airport_code="JFK",
-            destination_airport_code="LAX"
+        airport_repo = AirportRepository(test_db)
+        jfk = Airport(
+            airport_code="JFK",
+            airport_name="John F Kennedy",
+            airport_country="USA",
+            airport_city="NY",
+            airport_address="Queens",
+            longitude=0,
+            latitude=0,
         )
-        test_db.add(route)
-        
+        lax = Airport(
+            airport_code="LAX",
+            airport_name="Los Angeles Intl",
+            airport_country="USA",
+            airport_city="LA",
+            airport_address="LA Address",
+            longitude=0,
+            latitude=0,
+        )
+        airport_repo.create(jfk)
+        airport_repo.create(lax)
+
+        # Create route using RouteRepository
+        route_repo = RouteRepository(test_db)
+        route = route_repo.create(origin_airport_code="JFK", destination_airport_code="LAX")
+
         # Create aircraft
+        aircraft_repo = AircraftRepository(test_db)
         aircraft = Aircraft(
-            aircraft_id=uuid.uuid4(),
-            airline_designator="AA",
             manufacturer="Boeing",
-            aircraft_model="747"
+            aircraft_model="737",
+            current_distance=0.0,
+            maintenance_interval=100.0,
+            aircraft_status=AircraftStatus.AVAILABLE,
+            aircraft_location="JFK",
         )
-        test_db.add(aircraft)
-        
+        aircraft = aircraft_repo.create(aircraft)
+
         # Create flight
+        flight_repo = FlightRepository(test_db)
         flight = Flight(
-            flight_id=uuid.uuid4(),
             route_id=route.route_id,
             aircraft_id=aircraft.aircraft_id,
             flight_status=FlightStatus.SCHEDULED,
-            dept_time=datetime(2026, 2, 12, 10, 0),
-            arrival_time=datetime(2026, 2, 12, 14, 0)
+            departure_time=datetime.now(),
+            arrival_time=datetime.now(),
         )
-        test_db.add(flight)
-        
-        # Create employee
-        employee = InFlightEmployee(
-            employee_id=uuid.uuid4(),
-            airline_designator="AA",
-            f_name="John",
-            l_name="Doe",
+        flight = flight_repo.create(flight)
+
+        # Create supervisor employee (self-supervising)
+        employee_repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        supervisor = InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="John",
+            last_name="Doe",
             position=EmployeePosition.CAPTAIN,
-            status="Active",
-            supervised=None
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="JFK",
         )
-        test_db.add(employee)
-        
-        test_db.commit()
-        return {
-            "flight": flight,
-            "employee": employee
-        }
-    
-    def test_create_flight_crew(self, test_db, flight_crew_dependencies):
-        #Test creating a new flight crew assignment.#
+        supervisor = employee_repo.create(supervisor)
+
+        return {"flight": flight, "employee": supervisor}
+
+    def test_create_and_get_flight_crew(self, test_db):
+        deps = self.flight_crew_dependencies(test_db)
         repo = FlightCrewRepository(test_db)
-        flight_crew = FlightCrew(
-            flight_id=flight_crew_dependencies["flight"].flight_id,
-            employee_id=flight_crew_dependencies["employee"].employee_id
+
+        fc = FlightCrew(flight_id=deps["flight"].flight_id, employee_id=deps["employee"].employee_id)
+        created = repo.create(fc)
+
+        retrieved = repo.get(deps["flight"].flight_id, deps["employee"].employee_id)
+        assert retrieved is not None
+        assert retrieved.flight_id == created.flight_id
+        assert retrieved.employee_id == created.employee_id
+
+    def test_create_multiple_and_list_all(self, test_db):
+        deps = self.flight_crew_dependencies(test_db)
+        repo = FlightCrewRepository(test_db)
+        employee_repo = InFlightEmployeeRepository(test_db)
+
+        # create two more employees and assign to same flight
+        supervisor_id = deps["employee"].employee_id
+        e1 = InFlightEmployee(
+            first_name="A",
+            last_name="One",
+            position=EmployeePosition.FLIGHT_ATTENDANT,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="JFK",
         )
-        
-        result = repo.create(flight_crew)
-        
-        assert result.flight_id == flight_crew_dependencies["flight"].flight_id
-        assert result.employee_id == flight_crew_dependencies["employee"].employee_id
-    
-    def test_create_multiple_flight_crews(self, test_db, flight_crew_dependencies):
-        #Test creating multiple flight crew assignments.#
-        repo = FlightCrewRepository(test_db)
-        
-        # Create additional employees
-        for i in range(2):
-            employee = InFlightEmployee(
-                employee_id=uuid.uuid4(),
-                airline_designator="AA",
-                f_name=f"Employee{i}",
-                l_name=f"Last{i}",
-                position=EmployeePosition.FLIGHT_ATTENDANT,
-                status="Active",
-                supervised=None
-            )
-            test_db.add(employee)
-        
-        test_db.commit()
-        employees = test_db.query(InFlightEmployee).all()
-        
-        for employee in employees:
-            flight_crew = FlightCrew(
-                flight_id=flight_crew_dependencies["flight"].flight_id,
-                employee_id=employee.employee_id
-            )
-            repo.create(flight_crew)
-        
-        assert len(repo.list_all()) == 3
-    
-    def test_get_flight_crew(self, test_db, flight_crew_dependencies):
-        #Test retrieving flight crew by flight and employee IDs.#
-        repo = FlightCrewRepository(test_db)
-        flight_id = flight_crew_dependencies["flight"].flight_id
-        employee_id = flight_crew_dependencies["employee"].employee_id
-        
-        flight_crew = FlightCrew(flight_id=flight_id, employee_id=employee_id)
-        repo.create(flight_crew)
-        
-        result = repo.get(flight_id, employee_id)
-        
-        assert result is not None
-        assert result.flight_id == flight_id
-        assert result.employee_id == employee_id
-    
+        e2 = InFlightEmployee(
+            first_name="B",
+            last_name="Two",
+            position=EmployeePosition.FLIGHT_ATTENDANT,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="JFK",
+        )
+        e1 = employee_repo.create(e1)
+        e2 = employee_repo.create(e2)
+
+        repo.create(FlightCrew(flight_id=deps["flight"].flight_id, employee_id=deps["employee"].employee_id))
+        repo.create(FlightCrew(flight_id=deps["flight"].flight_id, employee_id=e1.employee_id))
+        repo.create(FlightCrew(flight_id=deps["flight"].flight_id, employee_id=e2.employee_id))
+
+        all_crews = repo.list_all()
+        assert len(all_crews) >= 3
+
     def test_get_nonexistent_flight_crew(self, test_db):
-        #Test retrieving a nonexistent flight crew returns None.#
         repo = FlightCrewRepository(test_db)
-        
         result = repo.get(uuid.uuid4(), uuid.uuid4())
-        
         assert result is None
-    
-    def test_list_all_flight_crews(self, test_db, flight_crew_dependencies):
-        #Test listing all flight crew assignments.#
+
+    def test_get_by_flight(self, test_db):
+        deps = self.flight_crew_dependencies(test_db)
         repo = FlightCrewRepository(test_db)
-        
-        # Create additional employees and crews
-        for i in range(2):
-            employee = InFlightEmployee(
-                employee_id=uuid.uuid4(),
-                airline_designator="AA",
-                f_name=f"Employee{i}",
-                l_name=f"Last{i}",
-                position=EmployeePosition.FLIGHT_ATTENDANT,
-                status="Active",
-                supervised=None
-            )
-            test_db.add(employee)
-        
-        test_db.commit()
-        
-        repo.create(FlightCrew(
-            flight_id=flight_crew_dependencies["flight"].flight_id,
-            employee_id=flight_crew_dependencies["employee"].employee_id
-        ))
-        
-        employees = test_db.query(InFlightEmployee).all()
-        for employee in employees[1:]:
-            flight_crew = FlightCrew(
-                flight_id=flight_crew_dependencies["flight"].flight_id,
-                employee_id=employee.employee_id
-            )
-            repo.create(flight_crew)
-        
-        result = repo.list_all()
-        
-        assert len(result) >= 1
-    
-    def test_list_all_flight_crews_empty(self, test_db):
-        #Test listing all flight crews when none exist.#
+
+        repo.create(FlightCrew(flight_id=deps["flight"].flight_id, employee_id=deps["employee"].employee_id))
+        by_flight = repo.get_by_flight(deps["flight"].flight_id)
+        assert isinstance(by_flight, list)
+        assert any(fc.employee_id == deps["employee"].employee_id for fc in by_flight)
+
+    def test_update_flight_crew_and_update_nonexistent(self, test_db):
+        deps = self.flight_crew_dependencies(test_db)
         repo = FlightCrewRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
-    def test_update_flight_crew(self, test_db, flight_crew_dependencies):
-        #Test updating a flight crew assignment.#
+
+        fc = FlightCrew(flight_id=deps["flight"].flight_id, employee_id=deps["employee"].employee_id)
+        repo.create(fc)
+
+        updated = repo.update(fc)
+        assert updated.flight_id == fc.flight_id
+        assert updated.employee_id == fc.employee_id
+
+        # nonexistent
+        with pytest.raises(ValueError):
+            repo.update(FlightCrew(flight_id=uuid.uuid4(), employee_id=uuid.uuid4()))
+
+    def test_delete_flight_crew_and_nonexistent(self, test_db):
+        deps = self.flight_crew_dependencies(test_db)
         repo = FlightCrewRepository(test_db)
-        flight_id = flight_crew_dependencies["flight"].flight_id
-        employee_id = flight_crew_dependencies["employee"].employee_id
-        
-        flight_crew = FlightCrew(flight_id=flight_id, employee_id=employee_id)
-        repo.create(flight_crew)
-        
-        # Update should return the existing record
-        result = repo.update(flight_crew)
-        
-        assert result.flight_id == flight_id
-        assert result.employee_id == employee_id
-    
-    def test_update_nonexistent_flight_crew(self, test_db):
-        #Test updating a nonexistent flight crew raises ValueError.#
-        repo = FlightCrewRepository(test_db)
-        flight_crew = FlightCrew(
-            flight_id=uuid.uuid4(),
-            employee_id=uuid.uuid4()
-        )
-        
-        with pytest.raises(ValueError, match="Flight Crew assignment not found"):
-            repo.update(flight_crew)
-    
-    def test_delete_flight_crew(self, test_db, flight_crew_dependencies):
-        #Test deleting a flight crew assignment.#
-        repo = FlightCrewRepository(test_db)
-        flight_id = flight_crew_dependencies["flight"].flight_id
-        employee_id = flight_crew_dependencies["employee"].employee_id
-        
-        flight_crew = FlightCrew(flight_id=flight_id, employee_id=employee_id)
-        repo.create(flight_crew)
-        
-        repo.delete(flight_id, employee_id)
-        
-        result = repo.get(flight_id, employee_id)
-        assert result is None
-    
-    def test_delete_nonexistent_flight_crew(self, test_db):
-        #Test deleting a nonexistent flight crew raises ValueError.#
-        repo = FlightCrewRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Flight Crew assignment not found"):
+
+        fc = FlightCrew(flight_id=deps["flight"].flight_id, employee_id=deps["employee"].employee_id)
+        repo.create(fc)
+
+        repo.delete(deps["flight"].flight_id, deps["employee"].employee_id)
+        assert repo.get(deps["flight"].flight_id, deps["employee"].employee_id) is None
+
+        with pytest.raises(ValueError):
             repo.delete(uuid.uuid4(), uuid.uuid4())
 
 
-# ============================================================================
-# Operates Repository Tests
-# ============================================================================
-
-class TestOperatesRepository:
-    #Tests for OperatesRepository CRUD operations.#
-    
-    @pytest.fixture
-    def operates_dependencies(self, test_db):
-        #Create dependencies for operates tests.#
-        # Create airline
-        airline = Airline(airline_designator="AA", name="American Airlines")
-        test_db.add(airline)
-        
-        # Create airport
+class TestInFlightEmployeeRepository:
+    def test_create_employee(self, test_db):
+        airport_repo = AirportRepository(test_db)
         airport = Airport(
             airport_code="JFK",
-            airport_name="JFK",
+            airport_name="John F Kennedy",
             airport_country="USA",
-            airport_city="New York",
-            airport_address="Jamaica"
+            airport_city="NY",
+            airport_address="Queens",
+            longitude=0,
+            latitude=0,
         )
-        test_db.add(airport)
-        
-        test_db.commit()
-        return {
-            "airline": airline,
-            "airport": airport
-        }
-    
-    def test_create_operates(self, test_db, operates_dependencies):
-        #Test creating a new operates record.#
-        repo = OperatesRepository(test_db)
-        operates = Operates(
-            airport_code="JFK",
-            airline_designator="AA"
+        airport_repo.create(airport)
+
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        emp = InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="Alice",
+            last_name="Smith",
+            position=EmployeePosition.COPILOT,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="JFK",
         )
-        
-        result = repo.create(operates)
-        
-        assert result.airport_code == "JFK"
-        assert result.airline_designator == "AA"
-    
-    def test_create_multiple_operates(self, test_db, operates_dependencies):
-        #Test creating multiple operates records.#
-        repo = OperatesRepository(test_db)
-        
-        # Create additional airports
-        for i in range(2):
-            airport = Airport(
-                airport_code=f"AP{i}",
-                airport_name=f"Airport{i}",
-                airport_country="USA",
-                airport_city=f"City{i}",
-                airport_address=f"Address{i}"
-            )
-            test_db.add(airport)
-        
+
+        created = repo.create(emp)
+        assert created.employee_id is not None
+        assert created.first_name == "Alice"
+
+    def test_get_employee_by_id(self, test_db):
+        airport = Airport(airport_code="LAX", airport_name="LAX", airport_country="USA", airport_city="LA", airport_address="Addr", longitude=0, latitude=0)
+        AirportRepository(test_db).create(airport)
+
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        emp = InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="Bob",
+            last_name="Brown",
+            position=EmployeePosition.CAPTAIN,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="LAX",
+        )
+        created = repo.create(emp)
+
+        fetched = repo.get(created.employee_id)
+        assert fetched is not None
+        assert fetched.employee_id == created.employee_id
+
+    def test_get_nonexistent_employee(self, test_db):
+        repo = InFlightEmployeeRepository(test_db)
+        assert repo.get(uuid.uuid4()) is None
+
+    def test_list_all_employees(self, test_db):
+        AirportRepository(test_db).create(Airport(airport_code="AAA", airport_name="A", airport_country="C", airport_city="City", airport_address="Addr", longitude=0, latitude=0))
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        repo.create(InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="F0",
+            last_name="L0",
+            position=EmployeePosition.FLIGHT_ATTENDANT,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="AAA",
+        ))
+        for i in range(1, 3):
+            repo.create(InFlightEmployee(
+                first_name=f"F{i}",
+                last_name=f"L{i}",
+                position=EmployeePosition.FLIGHT_ATTENDANT,
+                employee_status=InFlightStatus.AVAILABLE,
+                supervisor=supervisor_id,
+                employee_location="AAA",
+            ))
+
+        all_emps = repo.list_all()
+        assert len(all_emps) == 3
+
+    def test_update_status_location(self, test_db):
+        AirportRepository(test_db).create(Airport(airport_code="SFO", airport_name="SFO", airport_country="USA", airport_city="SF", airport_address="Addr", longitude=0, latitude=0))
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        emp = repo.create(InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="Cara",
+            last_name="Lane",
+            position=EmployeePosition.FLIGHT_MANAGER,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="SFO",
+        ))
+
+        updated = repo.update_status_location(emp, InFlightStatus.SCHEDULED, "JFK")
+        assert updated.employee_status == InFlightStatus.SCHEDULED
+        assert updated.employee_location == "JFK"
+
+    def test_update_nonexistent_employee_raises(self, test_db):
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        fake = InFlightEmployee(employee_id=uuid.uuid4(), first_name="X", last_name="Y", position=EmployeePosition.COPILOT, employee_status=InFlightStatus.AVAILABLE, supervisor=supervisor_id, employee_location="JFK")
+        with pytest.raises(ValueError):
+            repo.update_status_location(fake, InFlightStatus.SCHEDULED, "LAX")
+
+    def test_delete_employee(self, test_db):
+        AirportRepository(test_db).create(Airport(airport_code="DEL", airport_name="DEL", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0))
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        emp = repo.create(InFlightEmployee(
+            employee_id=supervisor_id,
+            first_name="D",
+            last_name="E",
+            position=EmployeePosition.FLIGHT_ATTENDANT,
+            employee_status=InFlightStatus.AVAILABLE,
+            supervisor=supervisor_id,
+            employee_location="DEL",
+        ))
+
+        repo.delete(emp.employee_id)
+        assert repo.get(emp.employee_id) is None
+
+    def test_delete_nonexistent_employee_raises(self, test_db):
+        repo = InFlightEmployeeRepository(test_db)
+        with pytest.raises(ValueError):
+            repo.delete(uuid.uuid4())
+
+    def test_available_employees_at_airport(self, test_db):
+        AirportRepository(test_db).create(Airport(airport_code="X1", airport_name="X1", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0))
+        repo = InFlightEmployeeRepository(test_db)
+        supervisor_id = uuid.uuid4()
+        # one available at X1
+        repo.create(InFlightEmployee(first_name="Avail", last_name="One", position=EmployeePosition.FLIGHT_ATTENDANT, employee_status=InFlightStatus.AVAILABLE, supervisor=supervisor_id, employee_location="X1"))
+        # one scheduled at X1 (should not be returned)
+        repo.create(InFlightEmployee(first_name="Sched", last_name="Two", position=EmployeePosition.FLIGHT_ATTENDANT, employee_status=InFlightStatus.SCHEDULED, supervisor=supervisor_id, employee_location="X1"))
+        # available elsewhere
+        AirportRepository(test_db).create(Airport(airport_code="Y1", airport_name="Y1", airport_country="C", airport_city="C", airport_address="A", longitude=0, latitude=0))
+        repo.create(InFlightEmployee(first_name="Avail", last_name="Three", position=EmployeePosition.COPILOT, employee_status=InFlightStatus.AVAILABLE, supervisor=supervisor_id, employee_location="Y1"))
+
+        avail = repo.available_employees_at_airport("X1")
+        assert all(e.employee_location == "X1" for e in avail)
+        assert all(e.employee_status == InFlightStatus.AVAILABLE for e in avail)
+
+
+class TestFlightRepository:
+    def test_create_and_get_flight(self, test_db):
+        # create dependencies
+        airport_repo = AirportRepository(test_db)
+        airport_repo.create(Airport(airport_code="ORG", airport_name="Org", airport_country="C", airport_city="OriginCity", airport_address="A", longitude=0, latitude=0))
+
+        route_repo = RouteRepository(test_db)
+        route = route_repo.create(origin_airport_code="ORG", destination_airport_code="DST")
+
+        aircraft_repo = AircraftRepository(test_db)
+        aircraft = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="X", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="ORG"))
+
+        repo = FlightRepository(test_db)
+        flight = Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now())
+        created = repo.create(flight)
+
+        fetched = repo.get(created.flight_id)
+        assert fetched is not None
+        assert fetched.flight_id == created.flight_id
+
+    def test_list_all_flights(self, test_db):
+        # setup
+        airport_repo = AirportRepository(test_db)
+        airport_repo.create(Airport(airport_code="A1", airport_name="A1", airport_country="C", airport_city="City1", airport_address="Addr", longitude=0, latitude=0))
+
+        route_repo = RouteRepository(test_db)
+        route = route_repo.create(origin_airport_code="A1", destination_airport_code="B1")
+
+        aircraft_repo = AircraftRepository(test_db)
+        ac = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="X", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="A1"))
+
+        repo = FlightRepository(test_db)
+        repo.create(Flight(route_id=route.route_id, aircraft_id=ac.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
+        repo.create(Flight(route_id=route.route_id, aircraft_id=ac.aircraft_id, flight_status=FlightStatus.DELAYED, departure_time=datetime.now(), arrival_time=datetime.now()))
+
+        all_flights = repo.list_all()
+        assert len(all_flights) >= 2
+
+    def test_update_flight(self, test_db):
+        # setup dependencies
+        airport_repo = AirportRepository(test_db)
+        airport_repo.create(Airport(airport_code="U1", airport_name="U1", airport_country="C", airport_city="UC", airport_address="Addr", longitude=0, latitude=0))
+
+        route_repo = RouteRepository(test_db)
+        r1 = route_repo.create(origin_airport_code="U1", destination_airport_code="D1")
+        r2 = route_repo.create(origin_airport_code="U1", destination_airport_code="D2")
+
+        aircraft_repo = AircraftRepository(test_db)
+        a1 = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="A1", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="U1"))
+        a2 = aircraft_repo.create(Aircraft(manufacturer="M", aircraft_model="A2", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="U1"))
+
+        repo = FlightRepository(test_db)
+        flight = repo.create(Flight(route_id=r1.route_id, aircraft_id=a1.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
+
+        # modify and update
+        flight.route_id = r2.route_id
+        flight.aircraft_id = a2.aircraft_id
+        flight.flight_status = FlightStatus.DELAYED
+        updated = repo.update(flight)
+
+        assert updated.route_id == r2.route_id
+        assert updated.aircraft_id == a2.aircraft_id
+        assert updated.flight_status == FlightStatus.DELAYED
+
+    def test_update_nonexistent_flight_raises(self, test_db):
+        repo = FlightRepository(test_db)
+        fake = Flight(flight_id=uuid.uuid4(), route_id=uuid.uuid4(), aircraft_id=uuid.uuid4(), flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now())
+        with pytest.raises(ValueError):
+            repo.update(fake)
+
+    def test_delete_flight(self, test_db):
+        route = Route(origin_airport_code="DEL1", destination_airport_code="DEL2")
+        test_db.add(route)
         test_db.commit()
-        
-        airports = ["JFK", "AP0", "AP1"]
-        for airport_code in airports:
-            operates = Operates(
-                airport_code=airport_code,
-                airline_designator="AA"
-            )
-            repo.create(operates)
-        
-        assert len(repo.list_all()) == 3
-    
-    def test_get_operates(self, test_db, operates_dependencies):
-        #Test retrieving operates record by airport code and airline designator.#
-        repo = OperatesRepository(test_db)
-        operates = Operates(airport_code="JFK", airline_designator="AA")
-        repo.create(operates)
-        
-        result = repo.get("JFK", "AA")
-        
-        assert result is not None
-        assert result.airport_code == "JFK"
-        assert result.airline_designator == "AA"
-    
-    def test_get_nonexistent_operates(self, test_db):
-        #Test retrieving a nonexistent operates record returns None.#
-        repo = OperatesRepository(test_db)
-        
-        result = repo.get("XXX", "ZZ")
-        
-        assert result is None
-    
-    def test_list_all_operates(self, test_db, operates_dependencies):
-        #Test listing all operates records.#
-        repo = OperatesRepository(test_db)
-        
-        # Create additional airports and operates records
-        for i in range(2):
-            airport = Airport(
-                airport_code=f"AP{i}",
-                airport_name=f"Airport{i}",
-                airport_country="USA",
-                airport_city=f"City{i}",
-                airport_address=f"Address{i}"
-            )
-            test_db.add(airport)
-        
+
+        aircraft = Aircraft(manufacturer="M", aircraft_model="DM", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="DEL1")
+        test_db.add(aircraft)
         test_db.commit()
-        
-        for airport_code in ["JFK", "AP0", "AP1"]:
-            operates = Operates(
-                airport_code=airport_code,
-                airline_designator="AA"
-            )
-            repo.create(operates)
-        
-        result = repo.list_all()
-        
-        assert len(result) == 3
-    
-    def test_list_all_operates_empty(self, test_db):
-        #Test listing all operates records when none exist.#
-        repo = OperatesRepository(test_db)
-        
-        result = repo.list_all()
-        
-        assert result == []
-    
-    def test_update_operates(self, test_db, operates_dependencies):
-        #Test updating an operates record.#
-        repo = OperatesRepository(test_db)
-        operates = Operates(airport_code="JFK", airline_designator="AA")
-        repo.create(operates)
-        
-        # Update should return the existing record
-        result = repo.update(operates)
-        
-        assert result.airport_code == "JFK"
-        assert result.airline_designator == "AA"
-    
-    def test_update_nonexistent_operates(self, test_db):
-        #Test updating a nonexistent operates record raises ValueError.#
-        repo = OperatesRepository(test_db)
-        operates = Operates(airport_code="XXX", airline_designator="ZZ")
-        
-        with pytest.raises(ValueError, match="Operates record not found"):
-            repo.update(operates)
-    
-    def test_delete_operates(self, test_db, operates_dependencies):
-        #Test deleting an operates record.#
-        repo = OperatesRepository(test_db)
-        operates = Operates(airport_code="JFK", airline_designator="AA")
-        repo.create(operates)
-        
-        repo.delete("JFK", "AA")
-        
-        result = repo.get("JFK", "AA")
-        assert result is None
-    
-    def test_delete_nonexistent_operates(self, test_db):
-        #Test deleting a nonexistent operates record raises ValueError.#
-        repo = OperatesRepository(test_db)
-        
-        with pytest.raises(ValueError, match="Operates record not found"):
-            repo.delete("XXX", "ZZ")
-"""
+
+        repo = FlightRepository(test_db)
+        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
+
+        repo.delete(flight.flight_id)
+        assert repo.get(flight.flight_id) is None
+
+    def test_delete_nonexistent_flight_raises(self, test_db):
+        repo = FlightRepository(test_db)
+        with pytest.raises(ValueError):
+            repo.delete(uuid.uuid4())
+
+    def test_get_scheduled_by_city(self, test_db):
+        # create origin airport
+        AirportRepository(test_db).create(Airport(airport_code="OC", airport_name="OC", airport_country="C", airport_city="OriginCity", airport_address="Addr", longitude=0, latitude=0))
+        # route from OC to DC
+        route = Route(origin_airport_code="OC", destination_airport_code="DC")
+        test_db.add(route)
+        test_db.commit()
+
+        # aircraft
+        aircraft = Aircraft(manufacturer="M", aircraft_model="F", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="OC")
+        test_db.add(aircraft)
+        test_db.commit()
+
+        # create scheduled flight
+        repo = FlightRepository(test_db)
+        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
+
+        found = repo.get_scheduled_by_city("OriginCity")
+        assert any(f.flight_id == flight.flight_id for f in found)
+
+    def test_update_flight_status_in_flight(self, test_db):
+        # setup
+        route = Route(origin_airport_code="UF", destination_airport_code="VF")
+        test_db.add(route)
+        test_db.commit()
+
+        aircraft = Aircraft(manufacturer="M", aircraft_model="S", current_distance=0, maintenance_interval=100, aircraft_status=AircraftStatus.AVAILABLE, aircraft_location="UF")
+        test_db.add(aircraft)
+        test_db.commit()
+
+        repo = FlightRepository(test_db)
+        flight = repo.create(Flight(route_id=route.route_id, aircraft_id=aircraft.aircraft_id, flight_status=FlightStatus.SCHEDULED, departure_time=datetime.now(), arrival_time=datetime.now()))
+
+        updated = repo.update_flight_status_in_flight(flight.flight_id)
+        assert updated.flight_status == FlightStatus.IN_FLIGHT

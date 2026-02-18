@@ -179,3 +179,27 @@ cython_debug/
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
+
+# Node / Frontend (Vite + React)
+node_modules/
+airline-ops-frontend/node_modules/
+airline-ops-frontend/dist/
+airline-ops-frontend/.vite/
+*.tsbuildinfo
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Frontend local env variants
+airline-ops-frontend/.env.local
+airline-ops-frontend/.env.development.local
+airline-ops-frontend/.env.test.local
+airline-ops-frontend/.env.production.local
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp
+*.swo

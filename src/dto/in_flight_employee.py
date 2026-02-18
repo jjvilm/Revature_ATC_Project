@@ -41,12 +41,13 @@ class InFlightEmployeeCreate(BaseModel):
     employee_status: InFlightStatus = Field(
         ..., description="Current operational status"
     )
-    supervisor: str | None = Field(
+    supervisor: UUID | None = Field(
         None, description="Optional identifier for the reporting manager"
     )
     employee_location: str = Field(
         ..., description="IATA code for the current airport base"
     )
+
 
 class InFlightEmployeeRead(BaseModel):
     """
@@ -62,7 +63,7 @@ class InFlightEmployeeRead(BaseModel):
     employee_status: InFlightStatus = Field(
         ..., description="Current operational status"
     )
-    supervisor: str | None = Field(
+    supervisor: UUID | None = Field(
         None, description="Optional identifier for the reporting manager"
     )
     employee_location: str = Field(
